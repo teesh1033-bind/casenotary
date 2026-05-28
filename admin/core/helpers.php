@@ -184,6 +184,37 @@ function paymentStatusColumn(): string
     return $column;
 }
 
+function appointmentStartColumn(): string
+{
+    static $column = null;
+
+    if ($column === null) {
+        $column = Database::columnExists('appointments', 'starts_at') ? 'starts_at' : 'start_time';
+    }
+
+    return $column;
+}
+
+function appointmentEndColumn(): string
+{
+    static $column = null;
+
+    if ($column === null) {
+        $column = Database::columnExists('appointments', 'ends_at') ? 'ends_at' : 'end_time';
+    }
+
+    return $column;
+}
+
+function userDisplayNameSql(string $alias = 'u', string $as = 'name'): string
+{
+    if (Database::columnExists('users', 'name')) {
+        return "{$alias}.name AS {$as}";
+    }
+
+    return "TRIM(CONCAT({$alias}.first_name, ' ', {$alias}.last_name)) AS {$as}";
+}
+
 function formatDate(?string $date, string $format = 'M d, Y'): string
 {
     if (!$date) {
@@ -257,6 +288,10 @@ function clearCompanySettingsCache(): void
 
 function getDashboardStats(): array
 {
+    $invoiceStatus = invoiceStatusColumn();
+    $paymentStatus = paymentStatusColumn();
+    $appointmentStart = appointmentStartColumn();
+
     $totalClients = Database::fetch('SELECT COUNT(*) AS count FROM clients')['count'] ?? 0;
 
     $activeCases = Database::fetch(
@@ -264,23 +299,23 @@ function getDashboardStats(): array
     )['count'] ?? 0;
 
     $pendingInvoices = Database::fetch(
-        "SELECT COUNT(*) AS count FROM invoices WHERE payment_status IN ('pending', 'overdue', 'partially_paid')"
+        "SELECT COUNT(*) AS count FROM invoices WHERE {$invoiceStatus} IN ('pending', 'overdue', 'partially_paid')"
     )['count'] ?? 0;
 
     $paidInvoices = Database::fetch(
-        "SELECT COUNT(*) AS count FROM invoices WHERE payment_status = 'paid'"
+        "SELECT COUNT(*) AS count FROM invoices WHERE {$invoiceStatus} = 'paid'"
     )['count'] ?? 0;
 
     $upcomingAppointments = Database::fetch(
-        "SELECT COUNT(*) AS count FROM appointments WHERE starts_at >= NOW() AND status IN ('scheduled', 'confirmed')"
+        "SELECT COUNT(*) AS count FROM appointments WHERE {$appointmentStart} >= NOW() AND status IN ('scheduled', 'confirmed')"
     )['count'] ?? 0;
 
     $totalRevenue = Database::fetch(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE payment_status = 'completed'"
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE {$paymentStatus} = 'completed'"
     )['total'] ?? 0;
 
     $monthlyRevenue = Database::fetch(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE payment_status = 'completed' AND MONTH(paid_at) = MONTH(NOW()) AND YEAR(paid_at) = YEAR(NOW())"
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE {$paymentStatus} = 'completed' AND MONTH(paid_at) = MONTH(NOW()) AND YEAR(paid_at) = YEAR(NOW())"
     )['total'] ?? 0;
 
     return [
@@ -297,7 +332,7 @@ function getDashboardStats(): array
 function getRecentActivity(int $limit = 8): array
 {
     return Database::fetchAll(
-        'SELECT al.*, u.name
+        'SELECT al.*, ' . userDisplayNameSql('u') . '
          FROM audit_logs al
          LEFT JOIN users u ON u.id = al.user_id
          ORDER BY al.created_at DESC
@@ -625,13 +660,17 @@ function getUnreadNotificationCount(int $userId): int
 
 function getUpcomingAppointments(int $limit = 5): array
 {
+    $startCol = appointmentStartColumn();
+    $endCol = appointmentEndColumn();
+
     return Database::fetchAll(
-        "SELECT a.*, a.starts_at AS start_time, a.ends_at AS end_time,
-                c.company_name, c.first_name, c.last_name
+        "SELECT a.*, a.{$startCol} AS start_time, a.{$endCol} AS end_time,
+                c.company_name, cu.first_name, cu.last_name
          FROM appointments a
          JOIN clients c ON c.id = a.client_id
-         WHERE a.starts_at >= NOW() AND a.status IN ('scheduled', 'confirmed')
-         ORDER BY a.starts_at ASC
+         JOIN users cu ON cu.id = c.user_id
+         WHERE a.{$startCol} >= NOW() AND a.status IN ('scheduled', 'confirmed')
+         ORDER BY a.{$startCol} ASC
          LIMIT ?",
         [$limit]
     );
@@ -640,9 +679,10 @@ function getUpcomingAppointments(int $limit = 5): array
 function getRecentCases(int $limit = 5): array
 {
     return Database::fetchAll(
-        "SELECT cs.*, cl.first_name, cl.last_name, cl.company_name
+        "SELECT cs.*, cu.first_name, cu.last_name, cl.company_name
          FROM cases cs
          JOIN clients cl ON cl.id = cs.client_id
+         JOIN users cu ON cu.id = cl.user_id
          ORDER BY cs.updated_at DESC
          LIMIT ?",
         [$limit]
@@ -651,12 +691,14 @@ function getRecentCases(int $limit = 5): array
 
 function getRevenueChartData(): array
 {
+    $paymentStatus = paymentStatusColumn();
+
     $rows = Database::fetchAll(
         "SELECT DATE_FORMAT(paid_at, '%b') AS month_label,
                 MONTH(paid_at) AS month_num,
                 COALESCE(SUM(amount), 0) AS total
          FROM payments
-         WHERE payment_status = 'completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+         WHERE {$paymentStatus} = 'completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
          GROUP BY MONTH(paid_at), DATE_FORMAT(paid_at, '%b')
          ORDER BY month_num ASC"
     );
@@ -713,6 +755,7 @@ function getInvoiceChartData(): array
 
 function getWeeklyPaymentsChartData(): array
 {
+    $paymentStatus = paymentStatusColumn();
     $dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     $payments  = array_fill(0, 7, 0.0);
     $invoices  = array_fill(0, 7, 0.0);
@@ -720,7 +763,7 @@ function getWeeklyPaymentsChartData(): array
     $rows = Database::fetchAll(
         "SELECT DATE(paid_at) AS day_date, COALESCE(SUM(amount), 0) AS total
          FROM payments
-         WHERE payment_status = 'completed'
+         WHERE {$paymentStatus} = 'completed'
            AND paid_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
          GROUP BY DATE(paid_at)"
     );
@@ -755,9 +798,11 @@ function getWeeklyPaymentsChartData(): array
 
 function getDashboardTrends(array $stats): array
 {
+    $paymentStatus = paymentStatusColumn();
+
     $lastMonthRevenue = (float) (Database::fetch(
         "SELECT COALESCE(SUM(amount), 0) AS total FROM payments
-         WHERE payment_status = 'completed'
+         WHERE {$paymentStatus} = 'completed'
            AND MONTH(paid_at) = MONTH(DATE_SUB(NOW(), INTERVAL 1 MONTH))
            AND YEAR(paid_at) = YEAR(DATE_SUB(NOW(), INTERVAL 1 MONTH))"
     )['total'] ?? 0);

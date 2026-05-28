@@ -73,7 +73,7 @@ class Auth
         }
 
         return Database::fetch(
-            'SELECT id, email, role, name, avatar, status FROM users WHERE id = ?',
+            'SELECT id, email, role, first_name, last_name, avatar, status FROM users WHERE id = ?',
             [$_SESSION['user_id']]
         );
     }
@@ -185,7 +185,7 @@ class Auth
     private static function updateLastLogin(int $userId): void
     {
         Database::query(
-            'UPDATE users SET last_login = NOW(), last_login_at = NOW() WHERE id = ?',
+            'UPDATE users SET last_login = NOW() WHERE id = ?',
             [$userId]
         );
     }
@@ -194,7 +194,7 @@ class Auth
     {
         try {
             Database::insert(
-                'INSERT INTO audit_logs (user_id, event, auditable_type, auditable_id, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?)',
+                'INSERT INTO audit_logs (user_id, action, entity_type, entity_id, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?)',
                 [
                     $userId,
                     $action,
