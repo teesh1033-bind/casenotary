@@ -73,21 +73,28 @@ require __DIR__ . '/../includes/header.php';
                         <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-upload"></i> Upload</button>
                     </form>
                 </div>
-                <div class="table-responsive">
-                    <table class="table saas-table mb-0">
-                        <thead><tr><th>File</th><th>Source</th><th>Date</th><th></th></tr></thead>
-                        <tbody>
-                            <?php foreach ($workspace['documents'] as $doc): ?>
-                                <tr>
-                                    <td><?= e($doc['original_name'] ?? $doc['file_name']) ?></td>
-                                    <td><?= ucfirst($doc['upload_source'] ?? 'admin') ?></td>
-                                    <td><?= formatDateTime($doc['created_at']) ?></td>
-                                    <td><a href="<?= adminUrl('actions/document-download.php?id=' . $doc['id']) ?>" class="btn btn-soft btn-sm"><i class="bi bi-download"></i></a></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
+                <?php if (empty($workspace['documents'])): ?>
+                    <div class="empty-state py-4">
+                        <i class="bi bi-file-earmark-arrow-up"></i>
+                        <p class="mb-0">No documents yet. Use the form above to upload files for this case.</p>
+                    </div>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table saas-table mb-0">
+                            <thead><tr><th>File</th><th>Source</th><th>Date</th><th></th></tr></thead>
+                            <tbody>
+                                <?php foreach ($workspace['documents'] as $doc): ?>
+                                    <tr>
+                                        <td><?= e($doc['original_name'] ?? $doc['file_name']) ?></td>
+                                        <td><?= ucfirst($doc['upload_source'] ?? 'admin') ?></td>
+                                        <td><?= formatDateTime($doc['created_at']) ?></td>
+                                        <td><a href="<?= adminUrl('actions/document-download.php?id=' . $doc['id']) ?>" class="btn btn-soft btn-sm"><i class="bi bi-download"></i></a></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -135,7 +142,19 @@ require __DIR__ . '/../includes/header.php';
                                     <td><?= formatCurrency((float) $inv['total']) ?></td>
                                     <td><?= formatDate($inv['due_date']) ?></td>
                                     <td><?= statusBadge($inv['payment_status'] ?? $inv['status'] ?? 'pending') ?></td>
-                                    <td><?php if ($inv['pdf_path']): ?><a href="<?= adminUrl('actions/document-download.php?path=' . urlencode($inv['pdf_path'])) ?>" class="btn btn-soft btn-sm" target="_blank">View</a><?php endif; ?></td>
+                                    <td class="text-end">
+                                        <?php if ($inv['pdf_path']): ?>
+                                            <a href="<?= adminUrl('actions/document-download.php?path=' . urlencode($inv['pdf_path'])) ?>" class="btn btn-soft btn-sm" target="_blank">View</a>
+                                        <?php endif; ?>
+                                        <?php $st = $inv['payment_status'] ?? $inv['status'] ?? 'pending'; ?>
+                                        <?php if (in_array($st, ['pending', 'overdue', 'partially_paid'], true) && StripeService::isConfigured()): ?>
+                                            <form method="post" action="<?= clientUrl('actions/stripe-checkout.php') ?>" class="d-inline">
+                                                <?= CSRF::field() ?>
+                                                <input type="hidden" name="invoice_id" value="<?= (int) $inv['id'] ?>">
+                                                <button type="submit" class="btn btn-primary btn-sm">Pay</button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -149,7 +168,10 @@ require __DIR__ . '/../includes/header.php';
                 <h3 class="case-panel-title">Receipts</h3>
                 <ul class="case-doc-list">
                     <?php foreach ($workspace['receipts'] as $r): ?>
-                        <li><div><strong><?= e($r['receipt_number']) ?></strong><small><?= formatCurrency((float) $r['amount']) ?></small></div></li>
+                        <li>
+                            <div><strong><?= e($r['receipt_number']) ?></strong><small><?= formatCurrency((float) $r['amount']) ?></small></div>
+                            <a href="<?= clientUrl('actions/receipt-download.php?id=' . (int) $r['id']) ?>" class="btn btn-soft btn-sm" target="_blank">Download</a>
+                        </li>
                     <?php endforeach; ?>
                 </ul>
             </div>
@@ -157,4 +179,16 @@ require __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<?php require __DIR__ . '/../includes/footer.php'; ?>
+<?php
+$pageScripts = <<<'HTML'
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const hash = window.location.hash;
+    if (!hash) return;
+    const trigger = document.querySelector('[data-bs-target="' + hash + '"]');
+    if (trigger) bootstrap.Tab.getOrCreateInstance(trigger).show();
+});
+</script>
+HTML;
+require __DIR__ . '/../includes/footer.php';
+?>

@@ -1203,7 +1203,11 @@ function getClientDashboardStats(int $clientId): array
 function getClientCases(int $clientId): array
 {
     return Database::fetchAll(
-        'SELECT * FROM cases WHERE client_id = ? ORDER BY updated_at DESC',
+        'SELECT c.*,
+                (SELECT COUNT(*) FROM documents d WHERE d.case_id = c.id) AS document_count
+         FROM cases c
+         WHERE c.client_id = ?
+         ORDER BY c.updated_at DESC',
         [$clientId]
     );
 }
