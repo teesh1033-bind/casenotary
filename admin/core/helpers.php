@@ -1188,7 +1188,7 @@ function getClientDashboardStats(int $clientId): array
     )['c'] ?? 0);
 
     $upcoming = (int) (Database::fetch(
-        "SELECT COUNT(*) AS c FROM appointments WHERE client_id = ? AND starts_at >= NOW() AND status IN ('scheduled','confirmed')",
+        'SELECT COUNT(*) AS c FROM appointments WHERE client_id = ? AND ' . appointmentStartColumn() . " >= NOW() AND status IN ('scheduled','confirmed')",
         [$clientId]
     )['c'] ?? 0);
 
@@ -1222,12 +1222,79 @@ function getClientRecentCases(int $clientId, int $limit = 5): array
 
 function getClientUpcomingAppointments(int $clientId, int $limit = 5): array
 {
+    $startCol = appointmentStartColumn();
+
     return Database::fetchAll(
-        "SELECT a.*, a.starts_at AS start_time FROM appointments a
-         WHERE a.client_id = ? AND a.starts_at >= NOW() AND a.status IN ('scheduled','confirmed')
-         ORDER BY a.starts_at ASC LIMIT ?",
+        "SELECT a.*, a.{$startCol} AS start_time FROM appointments a
+         WHERE a.client_id = ? AND a.{$startCol} >= NOW() AND a.status IN ('scheduled','confirmed')
+         ORDER BY a.{$startCol} ASC LIMIT ?",
         [$clientId, $limit]
     );
+}
+
+function getClientAppointments(int $clientId): array
+{
+    $startCol = appointmentStartColumn();
+    $endCol   = appointmentEndColumn();
+
+    return Database::fetchAll(
+        "SELECT a.*, a.{$startCol} AS start_time, a.{$endCol} AS end_time
+         FROM appointments a
+         WHERE a.client_id = ?
+         ORDER BY a.{$startCol} DESC",
+        [$clientId]
+    );
+}
+
+function getClientInvoices(int $clientId): array
+{
+    $statusCol = invoiceStatusColumn();
+
+    return Database::fetchAll(
+        "SELECT i.*, i.{$statusCol} AS payment_status, cs.case_number, cs.title AS case_title
+         FROM invoices i
+         LEFT JOIN cases cs ON cs.id = i.case_id
+         WHERE i.client_id = ?
+         ORDER BY i.created_at DESC",
+        [$clientId]
+    );
+}
+
+function getClientPayments(int $clientId): array
+{
+    $paymentStatus = paymentStatusColumn();
+
+    return Database::fetchAll(
+        "SELECT p.*, p.{$paymentStatus} AS status, i.invoice_number, i.total AS invoice_total
+         FROM payments p
+         JOIN invoices i ON i.id = p.invoice_id
+         WHERE i.client_id = ?
+         ORDER BY p.created_at DESC",
+        [$clientId]
+    );
+}
+
+function clientNotificationRedirectTarget(array $notif): string
+{
+    $target = resolveNotificationRedirect($notif['link'] ?? null);
+
+    if (str_starts_with($target, 'pages/case-view.php')) {
+        return $target;
+    }
+
+    if (str_starts_with($target, 'pages/appointments.php')) {
+        return 'pages/appointments.php';
+    }
+
+    if (str_starts_with($target, 'pages/payments.php') || ($notif['type'] ?? '') === 'invoice' || ($notif['type'] ?? '') === 'payment') {
+        return 'pages/payments.php';
+    }
+
+    if (str_starts_with($target, 'http://') || str_starts_with($target, 'https://')) {
+        return $target;
+    }
+
+    return 'pages/dashboard.php';
 }
 
 function caseActivityIcon(string $type): string
