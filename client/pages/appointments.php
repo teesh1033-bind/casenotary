@@ -58,14 +58,20 @@ require __DIR__ . '/../includes/header.php';
 <div class="row g-4">
     <div class="col-12">
         <div class="saas-card">
-            <div class="saas-card-header appointment-list-header">
+            <div class="saas-card-header appointment-calendar-header">
                 <div>
-                    <h2 class="saas-card-title">Calendar</h2>
-                    <p class="saas-card-subtitle mb-0">Your scheduled appointments</p>
+                    <h2 class="saas-card-title">Calendar View</h2>
+                    <p class="saas-card-subtitle mb-0">Month, week, and day views — click an event for details</p>
                 </div>
             </div>
-            <div class="card-body">
+            <div class="appointment-calendar-wrap">
                 <div id="appointmentCalendar"></div>
+                <div class="appointment-calendar-legend">
+                    <span><i style="background:#3aafa9"></i> Scheduled</span>
+                    <span><i style="background:#10b981"></i> Confirmed</span>
+                    <span><i style="background:#64748b"></i> Completed</span>
+                    <span><i style="background:#ef4444"></i> Cancelled</span>
+                </div>
             </div>
         </div>
     </div>
@@ -173,10 +179,15 @@ document.addEventListener('DOMContentLoaded', function () {
         headerToolbar: {
             left: 'prev,next today',
             center: 'title',
-            right: 'dayGridMonth,timeGridWeek,listWeek'
+            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
         },
         height: 'auto',
         events: events,
+        eventTimeFormat: {
+            hour: 'numeric',
+            minute: '2-digit',
+            meridiem: 'short'
+        },
         eventClick: function (info) {
             if (!bsModal) return;
             const props = info.event.extendedProps || {};
