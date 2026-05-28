@@ -563,6 +563,14 @@ textarea.case-form-control {
     font-size: 0.875rem;
 }
 
+.case-form-password-wrap {
+    position: relative;
+}
+
+.case-form-password-wrap .form-control {
+    padding-right: 2.75rem;
+}
+
 .cases-table-link {
     color: inherit;
     transition: color 0.2s ease;

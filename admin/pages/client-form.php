@@ -149,11 +149,21 @@ require __DIR__ . '/../includes/header.php';
                 <div id="portalPasswordFields" class="row g-3">
                     <div class="col-md-6">
                         <label class="case-form-label" for="password">Portal Password <span class="text-danger">*</span></label>
-                        <input type="password" id="password" name="password" class="form-control case-form-control" minlength="6" autocomplete="new-password">
+                        <div class="case-form-password-wrap">
+                            <input type="password" id="password" name="password" class="form-control case-form-control" minlength="6" autocomplete="new-password">
+                            <button type="button" class="password-toggle js-password-toggle" data-target="password" tabindex="-1" aria-label="Show password">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="case-form-label" for="password_confirmation">Confirm Password <span class="text-danger">*</span></label>
-                        <input type="password" id="password_confirmation" name="password_confirmation" class="form-control case-form-control" minlength="6" autocomplete="new-password">
+                        <div class="case-form-password-wrap">
+                            <input type="password" id="password_confirmation" name="password_confirmation" class="form-control case-form-control" minlength="6" autocomplete="new-password">
+                            <button type="button" class="password-toggle js-password-toggle" data-target="password_confirmation" tabindex="-1" aria-label="Show password">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -177,11 +187,21 @@ require __DIR__ . '/../includes/header.php';
                 <div id="portalPasswordFields" class="row g-3" style="display:none;">
                     <div class="col-md-6">
                         <label class="case-form-label" for="password">Portal Password <span class="text-danger">*</span></label>
-                        <input type="password" id="password" name="password" class="form-control case-form-control" minlength="6" autocomplete="new-password">
+                        <div class="case-form-password-wrap">
+                            <input type="password" id="password" name="password" class="form-control case-form-control" minlength="6" autocomplete="new-password">
+                            <button type="button" class="password-toggle js-password-toggle" data-target="password" tabindex="-1" aria-label="Show password">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="case-form-label" for="password_confirmation">Confirm Password <span class="text-danger">*</span></label>
-                        <input type="password" id="password_confirmation" name="password_confirmation" class="form-control case-form-control" minlength="6" autocomplete="new-password">
+                        <div class="case-form-password-wrap">
+                            <input type="password" id="password_confirmation" name="password_confirmation" class="form-control case-form-control" minlength="6" autocomplete="new-password">
+                            <button type="button" class="password-toggle js-password-toggle" data-target="password_confirmation" tabindex="-1" aria-label="Show password">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -223,6 +243,21 @@ document.addEventListener("DOMContentLoaded", function() {
             });
         }
     }
+
+    document.querySelectorAll(".js-password-toggle").forEach(function(button) {
+        button.addEventListener("click", function() {
+            var input = document.getElementById(this.getAttribute("data-target"));
+            if (!input) return;
+
+            var show = input.type === "password";
+            input.type = show ? "text" : "password";
+
+            var icon = this.querySelector("i");
+            icon.classList.toggle("bi-eye", !show);
+            icon.classList.toggle("bi-eye-slash", show);
+            this.setAttribute("aria-label", show ? "Hide password" : "Show password");
+        });
+    });
 
     var checkbox = document.getElementById("create_login");
     var fields = document.getElementById("portalPasswordFields");
