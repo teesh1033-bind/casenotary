@@ -6,11 +6,47 @@ Auth::requireAdmin();
 $pageTitle = 'Payments';
 $payments = getAllPayments();
 $pendingInvoices = getPendingInvoices();
+$overdueInvoices = getOverdueInvoices();
 $stats = getDashboardStats();
 $pageSubtitle = formatCurrency($stats['total_revenue']) . ' total revenue';
 
+$successMsg = flash('success');
+$errorMsg   = flash('error');
+
 require __DIR__ . '/../includes/header.php';
 ?>
+
+<?php if ($successMsg): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert"><?= e($successMsg) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+<?php if ($errorMsg): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert"><?= e($errorMsg) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+
+<?php if (!empty($overdueInvoices)): ?>
+    <div class="alert alert-danger d-flex align-items-start gap-3 mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle-fill fs-5 mt-1"></i>
+        <div class="flex-grow-1">
+            <strong><?= count($overdueInvoices) ?> overdue invoice<?= count($overdueInvoices) === 1 ? '' : 's' ?></strong>
+            <p class="mb-2 small">Follow up with clients or record payments to clear balances.</p>
+            <ul class="mb-0 small ps-3">
+                <?php foreach (array_slice($overdueInvoices, 0, 5) as $inv): ?>
+                    <li>
+                        <?= e($inv['invoice_number']) ?> — <?= e(clientFullName($inv)) ?> — <?= formatCurrency((float) $inv['total']) ?>
+                        (due <?= formatDate($inv['due_date']) ?>)
+                        <?php if (!empty($inv['case_id'])): ?>
+                            · <a href="<?= url('pages/case-view.php?id=' . (int) $inv['case_id'] . '#invoice-payments') ?>" class="alert-link">Open case</a>
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    </div>
+<?php endif; ?>
 
 <div class="row g-3 mb-4">
     <div class="col-md-4">
@@ -48,17 +84,39 @@ require __DIR__ . '/../includes/header.php';
             <h2 class="saas-card-title">Payment History</h2>
             <p class="saas-card-subtitle mb-0"><?= count($payments) ?> transactions</p>
         </div>
-        <?php if (!empty($pendingInvoices)): ?>
-            <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#recordPaymentModal">
-                <i class="bi bi-plus-lg"></i> Record Payment
-            </button>
-        <?php endif; ?>
+        <div class="d-flex gap-2 flex-wrap">
+            <?php if (!empty($payments)): ?>
+                <a href="<?= url('actions/payment-export.php') ?>" class="btn btn-light btn-sm">
+                    <i class="bi bi-download"></i> Export CSV
+                </a>
+            <?php endif; ?>
+            <?php if (!empty($pendingInvoices)): ?>
+                <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#recordPaymentModal">
+                    <i class="bi bi-plus-lg"></i> Record Payment
+                </button>
+            <?php endif; ?>
+        </div>
     </div>
     <div class="table-toolbar">
         <div class="table-search">
             <i class="bi bi-search"></i>
             <input type="search" class="form-control form-control-sm" id="tableSearch" placeholder="Search payments...">
         </div>
+        <select class="form-select form-select-sm table-filter" id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+            <option value="failed">Failed</option>
+            <option value="refunded">Refunded</option>
+        </select>
+        <select class="form-select form-select-sm table-filter" id="methodFilter">
+            <option value="">All methods</option>
+            <option value="stripe">Stripe</option>
+            <option value="bank_transfer">Bank Transfer</option>
+            <option value="cash">Cash</option>
+            <option value="check">Check</option>
+            <option value="other">Other</option>
+        </select>
     </div>
     <div class="card-body p-0">
         <?php if (empty($payments)): ?>
@@ -82,15 +140,16 @@ require __DIR__ . '/../includes/header.php';
                     </thead>
                     <tbody>
                         <?php foreach ($payments as $payment): ?>
-                            <tr>
+                            <?php $payStatus = paymentStatusValue($payment); ?>
+                            <tr data-status="<?= e($payStatus) ?>" data-method="<?= e($payment['payment_method'] ?? '') ?>">
                                 <td>
                                     <span class="table-primary"><?= e($payment['invoice_number']) ?></span>
                                     <span class="table-secondary d-block"><?= formatCurrency((float) $payment['invoice_total']) ?></span>
                                 </td>
                                 <td><?= e(clientFullName($payment)) ?></td>
                                 <td><span class="table-primary"><?= formatCurrency((float) $payment['amount']) ?></span></td>
-                                <td><?= e(ucwords(str_replace('_', ' ', $payment['payment_method']))) ?></td>
-                                <td><?= paymentStatusBadge(paymentStatusValue($payment)) ?></td>
+                                <td><?= paymentMethodBadge($payment['payment_method'] ?? 'other') ?></td>
+                                <td><?= paymentStatusBadge($payStatus) ?></td>
                                 <td class="text-muted"><?= formatDateTime($payment['paid_at'] ?? $payment['created_at']) ?></td>
                                 <td>
                                     <?php if (!empty($payment['receipt_id'])): ?>
@@ -125,15 +184,16 @@ require __DIR__ . '/../includes/header.php';
                     <label class="form-label">Invoice</label>
                     <select name="invoice_id" class="form-select" required>
                         <?php foreach ($pendingInvoices as $inv): ?>
+                            <?php $remaining = CaseService::getInvoiceRemainingBalance($inv); ?>
                             <option value="<?= (int) $inv['id'] ?>">
-                                <?= e($inv['invoice_number']) ?> — <?= e(clientFullName($inv)) ?> — <?= formatCurrency((float) $inv['total']) ?>
+                                <?= e($inv['invoice_number']) ?> — <?= e(clientFullName($inv)) ?> — <?= formatCurrency($remaining) ?> due
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Amount</label>
-                    <input type="number" step="0.01" min="0" name="amount" class="form-control" placeholder="Leave blank for full invoice amount">
+                    <input type="number" step="0.01" min="0" name="amount" class="form-control" placeholder="Leave blank to pay remaining balance">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Payment Method</label>
@@ -141,7 +201,7 @@ require __DIR__ . '/../includes/header.php';
                         <option value="bank_transfer">Bank Transfer</option>
                         <option value="cash">Cash</option>
                         <option value="check">Check</option>
-                        <option value="stripe">Stripe</option>
+                        <option value="stripe">Stripe (manual entry)</option>
                         <option value="other">Other</option>
                     </select>
                 </div>
@@ -159,4 +219,31 @@ require __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php require __DIR__ . '/../includes/footer.php'; ?>
+<?php
+$pageScripts = '<script>
+document.addEventListener("DOMContentLoaded", function() {
+    var tableSearch = document.getElementById("tableSearch");
+    var statusFilter = document.getElementById("statusFilter");
+    var methodFilter = document.getElementById("methodFilter");
+    var rows = document.querySelectorAll("#dataTable tbody tr");
+
+    function filterPayments() {
+        var q = (tableSearch?.value || "").toLowerCase();
+        var status = statusFilter?.value || "";
+        var method = methodFilter?.value || "";
+        rows.forEach(function(row) {
+            var text = row.textContent.toLowerCase();
+            var matchSearch = !q || text.includes(q);
+            var matchStatus = !status || row.dataset.status === status;
+            var matchMethod = !method || row.dataset.method === method;
+            row.style.display = matchSearch && matchStatus && matchMethod ? "" : "none";
+        });
+    }
+
+    tableSearch?.addEventListener("input", filterPayments);
+    statusFilter?.addEventListener("change", filterPayments);
+    methodFilter?.addEventListener("change", filterPayments);
+});
+</script>';
+require __DIR__ . '/../includes/footer.php';
+?>

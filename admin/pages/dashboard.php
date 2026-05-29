@@ -10,10 +10,10 @@ $trends       = getDashboardTrends($stats);
 $chartData    = getRevenueChartData();
 $invoiceData  = getInvoiceChartData();
 $weeklyData   = getWeeklyPaymentsChartData();
-$weeklyTotals = [];
-foreach ($weeklyData['payments'] as $i => $amount) {
-    $weeklyTotals[] = $amount + ($weeklyData['invoices'][$i] ?? 0);
-}
+$hasRevenueChartData = chartSeriesHasData($chartData['data'])
+    || chartSeriesHasData($invoiceData['data']);
+$hasWeeklyChartData  = chartSeriesHasData($weeklyData['payments'])
+    || chartSeriesHasData($weeklyData['invoices']);
 $recentCases        = getRecentCases(8);
 $upcomingAppointments = getUpcomingAppointments(4);
 $businessActivity   = getBusinessActivityFeed(20);
@@ -23,45 +23,64 @@ require __DIR__ . '/../includes/header.php';
 
 <div class="container-fluid px-0 dashboard-page">
     <!-- Stat cards -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 dashboard-kpi-row">
         <div class="col-sm-6 col-xl-3">
             <a href="<?= url('pages/clients.php') ?>" class="stat-card">
                 <div class="stat-card-icon"><i class="bi bi-people"></i></div>
-                <div class="stat-card-title">Total Clients · Last 7 days</div>
-                <div class="stat-card-value"><?= number_format($stats['total_clients']) ?></div>
-                <div class="stat-card-bottom">
-                    <span class="stat-card-sub">New clients</span>
-                    <?= kpiTrendBadge($trends['clients']) ?>
+                <div class="stat-card-body">
+                    <div class="stat-card-title">Total Clients</div>
+                    <div class="stat-card-value-row">
+                        <span class="stat-card-value"><?= number_format($stats['total_clients']) ?></span>
+                        <?= kpiTrendBadge($trends['clients'], true) ?>
+                    </div>
+                    <div class="stat-card-footer">
+                        <span class="stat-card-sub">New clients · Last 7 days</span>
+                    </div>
                 </div>
             </a>
         </div>
         <div class="col-sm-6 col-xl-3">
             <a href="<?= url('pages/payments.php') ?>" class="stat-card">
                 <div class="stat-card-icon"><i class="bi bi-cash-stack"></i></div>
-                <div class="stat-card-title">Total Payments · Last 7 days</div>
-                <div class="stat-card-value-row">
-                    <span class="stat-card-value"><?= formatCurrency($stats['total_revenue']) ?></span>
-                    <?= kpiTrendBadge($trends['revenue'], true) ?>
+                <div class="stat-card-body">
+                    <div class="stat-card-title">Total Payments</div>
+                    <div class="stat-card-value-row">
+                        <span class="stat-card-value"><?= formatCurrency($stats['total_revenue']) ?></span>
+                        <?= kpiTrendBadge($trends['revenue'], true) ?>
+                    </div>
+                    <div class="stat-card-footer">
+                        <span class="stat-card-sub">Completed · Last 7 days</span>
+                    </div>
                 </div>
             </a>
         </div>
         <div class="col-sm-6 col-xl-3">
             <a href="<?= url('pages/payments.php') ?>" class="stat-card">
                 <div class="stat-card-icon"><i class="bi bi-receipt"></i></div>
-                <div class="stat-card-title">Pending Invoices · Last 7 days</div>
-                <div class="stat-card-value-row">
-                    <span class="stat-card-value"><?= number_format($stats['pending_invoices']) ?></span>
-                    <?= kpiTrendBadge($trends['invoices'], true) ?>
+                <div class="stat-card-body">
+                    <div class="stat-card-title">Pending Invoices</div>
+                    <div class="stat-card-value-row">
+                        <span class="stat-card-value"><?= number_format($stats['pending_invoices']) ?></span>
+                        <?= kpiTrendBadge($trends['invoices'], true) ?>
+                    </div>
+                    <div class="stat-card-footer">
+                        <span class="stat-card-sub">Awaiting payment · Last 7 days</span>
+                    </div>
                 </div>
             </a>
         </div>
         <div class="col-sm-6 col-xl-3">
             <a href="<?= url('pages/cases.php') ?>" class="stat-card">
                 <div class="stat-card-icon"><i class="bi bi-briefcase"></i></div>
-                <div class="stat-card-title">Active Cases · Last 7 days</div>
-                <div class="stat-card-value-row">
-                    <span class="stat-card-value"><?= number_format($stats['active_cases']) ?></span>
-                    <?= kpiTrendBadge($trends['cases'], true) ?>
+                <div class="stat-card-body">
+                    <div class="stat-card-title">Active Cases</div>
+                    <div class="stat-card-value-row">
+                        <span class="stat-card-value"><?= number_format($stats['active_cases']) ?></span>
+                        <?= kpiTrendBadge($trends['cases'], true) ?>
+                    </div>
+                    <div class="stat-card-footer">
+                        <span class="stat-card-sub">In progress · Last 7 days</span>
+                    </div>
                 </div>
             </a>
         </div>
@@ -73,25 +92,33 @@ require __DIR__ . '/../includes/header.php';
             <div class="dash-chart-card">
                 <div class="dash-chart-header">
                     <div class="chart-legend">
-                        <label class="chart-legend-item">
-                            <input type="radio" name="areaLegend" checked disabled>
+                        <span class="chart-legend-item-static">
                             <span class="legend-dot legend-dot-dark"></span>
                             Total Revenue
-                        </label>
-                        <label class="chart-legend-item">
-                            <input type="radio" name="areaLegend" disabled>
+                        </span>
+                        <span class="chart-legend-item-static">
                             <span class="legend-dot legend-dot-primary"></span>
                             Total Payments
-                        </label>
+                        </span>
                     </div>
-                    <div class="chart-period-toggle btn-group btn-group-sm" role="group">
+                    <div class="chart-period-toggle btn-group btn-group-sm" role="group" aria-label="Chart period">
                         <button type="button" class="btn btn-period" data-period="day">Day</button>
                         <button type="button" class="btn btn-period" data-period="week">Week</button>
                         <button type="button" class="btn btn-period active" data-period="month">Month</button>
                     </div>
                 </div>
                 <div class="dash-chart-body dash-chart-body-lg">
-                    <canvas id="revenueChart"></canvas>
+                    <?php if (!$hasRevenueChartData): ?>
+                        <div class="chart-empty-state">
+                            <i class="bi bi-graph-up"></i>
+                            <p class="mb-0">No revenue or payment data yet.</p>
+                            <span class="chart-empty-hint">Completed payments and invoices will appear here.</span>
+                        </div>
+                    <?php else: ?>
+                        <div class="chart-canvas-wrap">
+                            <canvas id="revenueChart"></canvas>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -99,7 +126,7 @@ require __DIR__ . '/../includes/header.php';
             <div class="dash-chart-card h-100">
                 <div class="dash-chart-header">
                     <div>
-                        <h2 class="dash-chart-title">Profit this week</h2>
+                        <h2 class="dash-chart-title">This week</h2>
                         <div class="chart-legend chart-legend-inline mt-1">
                             <span class="chart-legend-item-static">
                                 <span class="legend-dot legend-dot-dark"></span> Payments
@@ -111,14 +138,23 @@ require __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <div class="dash-chart-body">
-                    <canvas id="weeklyChart"></canvas>
+                    <?php if (!$hasWeeklyChartData): ?>
+                        <div class="chart-empty-state">
+                            <i class="bi bi-bar-chart"></i>
+                            <p class="mb-0">No payments or invoices this week.</p>
+                            <span class="chart-empty-hint">Daily activity from the last 7 days will show here.</span>
+                        </div>
+                    <?php else: ?>
+                        <div class="chart-canvas-wrap chart-canvas-wrap-sm">
+                            <canvas id="weeklyChart"></canvas>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Appointments -->
-    <?php if (!empty($upcomingAppointments)): ?>
     <div class="row g-4 mb-4">
         <div class="col-12">
             <div class="dash-chart-card">
@@ -127,26 +163,33 @@ require __DIR__ . '/../includes/header.php';
                     <a href="<?= url('pages/appointments.php') ?>" class="btn btn-sm btn-soft">View all</a>
                 </div>
                 <div class="dash-chart-body p-0 pt-0">
-                    <ul class="schedule-list schedule-list-compact">
-                        <?php foreach ($upcomingAppointments as $appt): ?>
-                            <li class="schedule-item">
-                                <div class="schedule-date">
-                                    <span><?= date('d', strtotime($appt['start_time'])) ?></span>
-                                    <small><?= date('M', strtotime($appt['start_time'])) ?></small>
-                                </div>
-                                <div class="schedule-info">
-                                    <span class="schedule-title"><?= e($appt['title']) ?></span>
-                                    <span class="schedule-meta"><?= formatDateTime($appt['start_time'], 'g:i A') ?> · <?= e(clientFullName($appt)) ?></span>
-                                </div>
-                                <?= statusBadge($appt['status']) ?>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
+                    <?php if (empty($upcomingAppointments)): ?>
+                        <div class="empty-state empty-state-panel py-4">
+                            <i class="bi bi-calendar-x"></i>
+                            <p class="mb-0">No upcoming appointments</p>
+                            <span class="empty-state-hint">Scheduled sessions will appear here.</span>
+                        </div>
+                    <?php else: ?>
+                        <ul class="schedule-list schedule-list-compact">
+                            <?php foreach ($upcomingAppointments as $appt): ?>
+                                <li class="schedule-item">
+                                    <div class="schedule-date">
+                                        <span><?= date('d', strtotime($appt['start_time'])) ?></span>
+                                        <small><?= date('M', strtotime($appt['start_time'])) ?></small>
+                                    </div>
+                                    <div class="schedule-info">
+                                        <span class="schedule-title"><?= e($appt['title']) ?></span>
+                                        <span class="schedule-meta"><?= formatDateTime($appt['start_time'], 'g:i A') ?> · <?= e(clientFullName($appt)) ?></span>
+                                    </div>
+                                    <?= statusBadge($appt['status']) ?>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
     </div>
-    <?php endif; ?>
 
     <!-- Recent Cases + Activity -->
     <div class="row g-4">
@@ -170,6 +213,13 @@ require __DIR__ . '/../includes/header.php';
                         <option value="closed">Closed</option>
                     </select>
                 </div>
+                <?php if (empty($recentCases)): ?>
+                    <div class="empty-state empty-state-panel py-4">
+                        <i class="bi bi-inbox"></i>
+                        <p class="mb-0">No cases yet</p>
+                        <span class="empty-state-hint">Recent cases will appear here once created.</span>
+                    </div>
+                <?php else: ?>
                 <div class="table-responsive">
                     <table class="table saas-table mb-0" id="casesTable">
                         <thead>
@@ -195,6 +245,7 @@ require __DIR__ . '/../includes/header.php';
                         </tbody>
                     </table>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
         <div class="col-xl-4" id="activity">
@@ -207,9 +258,10 @@ require __DIR__ . '/../includes/header.php';
                 </div>
                 <div class="activity-scroll">
                     <?php if (empty($businessActivity)): ?>
-                        <div class="empty-state py-4">
+                        <div class="empty-state empty-state-panel py-4">
                             <i class="bi bi-activity"></i>
                             <p class="mb-0">No recent activity</p>
+                            <span class="empty-state-hint">Business events will show up here.</span>
                         </div>
                     <?php else: ?>
                         <ul class="activity-stream">
@@ -242,11 +294,22 @@ document.addEventListener("DOMContentLoaded", function() {
     const formatMoney = function(v) {
         return currencySymbol + " " + Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
+    const formatAxisMoney = function(v) {
+        const n = Number(v);
+        if (n >= 10000000) return currencySymbol + " " + (n / 10000000).toFixed(1) + "Cr";
+        if (n >= 100000) return currencySymbol + " " + (n / 100000).toFixed(1) + "L";
+        if (n >= 1000) return currencySymbol + " " + (n / 1000).toFixed(1) + "K";
+        return currencySymbol + " " + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+    };
 
     const monthLabels = ' . json_encode($chartData['labels']) . ';
     const revenueData = ' . json_encode($chartData['data']) . ';
-    const paymentData = ' . json_encode($chartData['data']) . ';
     const invoiceData = ' . json_encode($invoiceData['data']) . ';
+    const weekLabels = ' . json_encode($weeklyData['labels']) . ';
+    const weekPayments = ' . json_encode($weeklyData['payments']) . ';
+    const weekInvoices = ' . json_encode($weeklyData['invoices']) . ';
+    const hasRevenueChart = ' . ($hasRevenueChartData ? 'true' : 'false') . ';
+    const hasWeeklyChart = ' . ($hasWeeklyChartData ? 'true' : 'false') . ';
 
     const areaCtx = document.getElementById("revenueChart");
     let areaChart = null;
@@ -273,7 +336,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         borderWidth: 2.5,
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 4,
+                        pointRadius: labels.length > 1 ? 4 : 6,
                         pointBackgroundColor: secondary,
                         pointBorderColor: "#fff",
                         pointBorderWidth: 2,
@@ -292,7 +355,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         borderWidth: 2.5,
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 4,
+                        pointRadius: labels.length > 1 ? 4 : 6,
                         pointBackgroundColor: primary,
                         pointBorderColor: "#fff",
                         pointBorderWidth: 2,
@@ -304,6 +367,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 interaction: { mode: "index", intersect: false },
+                layout: { padding: { left: 4, right: 8, top: 8, bottom: 0 } },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
@@ -323,7 +387,13 @@ document.addEventListener("DOMContentLoaded", function() {
                     x: {
                         grid: { display: false },
                         border: { display: false },
-                        ticks: { font: { family: "Montserrat", size: 11 }, color: "#94a3b8" }
+                        ticks: {
+                            font: { family: "Montserrat", size: 11 },
+                            color: "#94a3b8",
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: window.innerWidth < 576 ? 4 : 7
+                        }
                     },
                     y: {
                         beginAtZero: true,
@@ -332,7 +402,9 @@ document.addEventListener("DOMContentLoaded", function() {
                         ticks: {
                             font: { family: "Montserrat", size: 11 },
                             color: "#94a3b8",
-                            callback: function(v) { return formatMoney(v); }
+                            padding: 6,
+                            maxTicksLimit: 6,
+                            callback: function(v) { return formatAxisMoney(v); }
                         }
                     }
                 }
@@ -340,51 +412,58 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    buildAreaChart(monthLabels, invoiceData, revenueData);
+    if (hasRevenueChart && areaCtx) {
+        buildAreaChart(monthLabels, invoiceData, revenueData);
 
-    document.querySelectorAll(".btn-period").forEach(function(btn) {
-        btn.addEventListener("click", function() {
-            document.querySelectorAll(".btn-period").forEach(function(b) { b.classList.remove("active"); });
-            this.classList.add("active");
-            const period = this.dataset.period;
-            if (period === "month") {
-                buildAreaChart(monthLabels, invoiceData, revenueData);
-            } else if (period === "week") {
-                buildAreaChart(' . json_encode($weeklyData['labels']) . ', ' . json_encode($weeklyData['payments']) . ', ' . json_encode($weeklyTotals) . ');
-            } else {
-                buildAreaChart(["Today"], [revenueData[revenueData.length-1]||0], [paymentData[paymentData.length-1]||0]);
-            }
+        document.querySelectorAll(".btn-period").forEach(function(btn) {
+            btn.addEventListener("click", function() {
+                document.querySelectorAll(".btn-period").forEach(function(b) { b.classList.remove("active"); });
+                this.classList.add("active");
+                const period = this.dataset.period;
+                if (period === "month") {
+                    buildAreaChart(monthLabels, invoiceData, revenueData);
+                } else if (period === "week") {
+                    buildAreaChart(weekLabels, weekInvoices, weekPayments);
+                } else {
+                    const todayPayments = weekPayments[weekPayments.length - 1] || 0;
+                    const todayInvoices = weekInvoices[weekInvoices.length - 1] || 0;
+                    buildAreaChart(["Today"], [todayInvoices], [todayPayments]);
+                }
+            });
         });
-    });
+    }
 
     const barCtx = document.getElementById("weeklyChart");
-    if (barCtx) {
+    if (hasWeeklyChart && barCtx) {
         new Chart(barCtx, {
             type: "bar",
             data: {
-                labels: ' . json_encode($weeklyData['labels']) . ',
+                labels: weekLabels,
                 datasets: [
                     {
                         label: "Payments",
-                        data: ' . json_encode($weeklyData['payments']) . ',
+                        data: weekPayments,
                         backgroundColor: secondary,
                         borderRadius: 4,
                         borderSkipped: false,
-                        barPercentage: 0.55
+                        barPercentage: 0.6,
+                        categoryPercentage: 0.75
                     },
                     {
                         label: "Invoices",
-                        data: ' . json_encode($weeklyData['invoices']) . ',
+                        data: weekInvoices,
                         backgroundColor: primary,
                         borderRadius: { topLeft: 4, topRight: 4 },
                         borderSkipped: false,
-                        barPercentage: 0.55
+                        barPercentage: 0.6,
+                        categoryPercentage: 0.75
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: { padding: { left: 4, right: 8, top: 8, bottom: 0 } },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
@@ -402,7 +481,13 @@ document.addEventListener("DOMContentLoaded", function() {
                         stacked: true,
                         grid: { display: false },
                         border: { display: false },
-                        ticks: { font: { family: "Montserrat", size: 11 }, color: "#94a3b8" }
+                        ticks: {
+                            font: { family: "Montserrat", size: 10 },
+                            color: "#94a3b8",
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: window.innerWidth < 576 ? 4 : 7
+                        }
                     },
                     y: {
                         stacked: true,
@@ -412,7 +497,9 @@ document.addEventListener("DOMContentLoaded", function() {
                         ticks: {
                             font: { family: "Montserrat", size: 11 },
                             color: "#94a3b8",
-                            callback: function(v) { return formatMoney(v); }
+                            padding: 6,
+                            maxTicksLimit: 6,
+                            callback: function(v) { return formatAxisMoney(v); }
                         }
                     }
                 }

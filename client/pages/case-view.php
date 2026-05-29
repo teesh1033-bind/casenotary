@@ -141,13 +141,16 @@ require __DIR__ . '/../includes/header.php';
                                     <td><?= e($inv['invoice_number']) ?></td>
                                     <td><?= formatCurrency((float) $inv['total']) ?></td>
                                     <td><?= formatDate($inv['due_date']) ?></td>
-                                    <td><?= statusBadge($inv['payment_status'] ?? $inv['status'] ?? 'pending') ?></td>
+                                    <td><?= statusBadge(effectiveInvoiceStatus($inv)) ?></td>
                                     <td class="text-end">
                                         <?php if ($inv['pdf_path']): ?>
-                                            <a href="<?= adminUrl('actions/document-download.php?path=' . urlencode($inv['pdf_path'])) ?>" class="btn btn-soft btn-sm" target="_blank">View</a>
+                                            <a href="<?= adminUrl('actions/document-download.php?path=' . urlencode($inv['pdf_path'])) ?>" class="btn btn-soft btn-sm" target="_blank">PDF</a>
                                         <?php endif; ?>
-                                        <?php $st = $inv['payment_status'] ?? $inv['status'] ?? 'pending'; ?>
-                                        <?php if (in_array($st, ['pending', 'overdue', 'partially_paid'], true) && StripeService::isConfigured()): ?>
+                                        <?php
+                                        $st = effectiveInvoiceStatus($inv);
+                                        $remaining = CaseService::getInvoiceRemainingBalance($inv);
+                                        ?>
+                                        <?php if (in_array($st, ['pending', 'overdue', 'partially_paid'], true) && $remaining > 0 && StripeService::isConfigured()): ?>
                                             <form method="post" action="<?= clientUrl('actions/stripe-checkout.php') ?>" class="d-inline">
                                                 <?= CSRF::field() ?>
                                                 <input type="hidden" name="invoice_id" value="<?= (int) $inv['id'] ?>">

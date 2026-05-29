@@ -22,44 +22,60 @@ require __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="container-fluid px-0 dashboard-page">
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 dashboard-kpi-row">
         <div class="col-sm-6 col-xl-3">
             <a href="<?= clientUrl('pages/cases.php') ?>" class="stat-card">
                 <div class="stat-card-icon"><i class="bi bi-briefcase"></i></div>
-                <div class="stat-card-title">Active Cases</div>
-                <div class="stat-card-value"><?= number_format($stats['active_cases']) ?></div>
-                <div class="stat-card-bottom">
-                    <span class="stat-card-sub">In progress</span>
+                <div class="stat-card-body">
+                    <div class="stat-card-title">Active Cases</div>
+                    <div class="stat-card-value-row">
+                        <span class="stat-card-value"><?= number_format($stats['active_cases']) ?></span>
+                    </div>
+                    <div class="stat-card-footer">
+                        <span class="stat-card-sub">In progress</span>
+                    </div>
                 </div>
             </a>
         </div>
         <div class="col-sm-6 col-xl-3">
             <a href="<?= clientUrl('pages/payments.php') ?>" class="stat-card">
                 <div class="stat-card-icon"><i class="bi bi-receipt"></i></div>
-                <div class="stat-card-title">Pending Invoices</div>
-                <div class="stat-card-value"><?= number_format($stats['pending_invoices']) ?></div>
-                <div class="stat-card-bottom">
-                    <span class="stat-card-sub">Awaiting payment</span>
+                <div class="stat-card-body">
+                    <div class="stat-card-title">Pending Invoices</div>
+                    <div class="stat-card-value-row">
+                        <span class="stat-card-value"><?= number_format($stats['pending_invoices']) ?></span>
+                    </div>
+                    <div class="stat-card-footer">
+                        <span class="stat-card-sub">Awaiting payment</span>
+                    </div>
                 </div>
             </a>
         </div>
         <div class="col-sm-6 col-xl-3">
             <a href="<?= clientUrl('pages/cases.php') ?>" class="stat-card">
                 <div class="stat-card-icon"><i class="bi bi-file-earmark-text"></i></div>
-                <div class="stat-card-title">Documents</div>
-                <div class="stat-card-value"><?= number_format($stats['documents']) ?></div>
-                <div class="stat-card-bottom">
-                    <span class="stat-card-sub">Available files</span>
+                <div class="stat-card-body">
+                    <div class="stat-card-title">Documents</div>
+                    <div class="stat-card-value-row">
+                        <span class="stat-card-value"><?= number_format($stats['documents']) ?></span>
+                    </div>
+                    <div class="stat-card-footer">
+                        <span class="stat-card-sub">Available files</span>
+                    </div>
                 </div>
             </a>
         </div>
         <div class="col-sm-6 col-xl-3">
             <a href="<?= clientUrl('pages/appointments.php') ?>" class="stat-card">
                 <div class="stat-card-icon"><i class="bi bi-calendar-event"></i></div>
-                <div class="stat-card-title">Upcoming Appointments</div>
-                <div class="stat-card-value"><?= number_format($stats['upcoming_appointments']) ?></div>
-                <div class="stat-card-bottom">
-                    <span class="stat-card-sub">Scheduled</span>
+                <div class="stat-card-body">
+                    <div class="stat-card-title">Upcoming Appointments</div>
+                    <div class="stat-card-value-row">
+                        <span class="stat-card-value"><?= number_format($stats['upcoming_appointments']) ?></span>
+                    </div>
+                    <div class="stat-card-footer">
+                        <span class="stat-card-sub">Scheduled</span>
+                    </div>
                 </div>
             </a>
         </div>
@@ -74,9 +90,10 @@ require __DIR__ . '/../includes/header.php';
                 </div>
                 <?php if (empty($recentCases)): ?>
                     <div class="dash-chart-body">
-                        <div class="empty-state py-4">
+                        <div class="empty-state empty-state-panel py-4">
                             <i class="bi bi-inbox"></i>
-                            <p class="mb-0">No cases yet. Your assigned cases will appear here.</p>
+                            <p class="mb-0">No cases yet</p>
+                            <span class="empty-state-hint">Your assigned cases will appear here.</span>
                         </div>
                     </div>
                 <?php else: ?>
@@ -120,9 +137,10 @@ require __DIR__ . '/../includes/header.php';
                 </div>
                 <div class="dash-chart-body p-0 pt-0">
                     <?php if (empty($upcomingAppointments)): ?>
-                        <div class="empty-state py-4">
+                        <div class="empty-state empty-state-panel py-4">
                             <i class="bi bi-calendar-x"></i>
-                            <p class="mb-0">No upcoming appointments scheduled.</p>
+                            <p class="mb-0">No upcoming appointments</p>
+                            <span class="empty-state-hint">Scheduled sessions will appear here.</span>
                         </div>
                     <?php else: ?>
                         <ul class="schedule-list schedule-list-compact">

@@ -147,6 +147,7 @@
     // Generic table search & filter (list pages)
     const tableSearch = document.getElementById('tableSearch');
     const statusFilter = document.getElementById('statusFilter');
+    const priorityFilter = document.getElementById('priorityFilter');
     const dataTable = document.getElementById('dataTable');
 
     if (dataTable) {
@@ -155,15 +156,18 @@
         function filterTable() {
             const q = (tableSearch?.value || '').toLowerCase();
             const status = statusFilter?.value || '';
+            const priority = priorityFilter?.value || '';
             rows.forEach(function (row) {
                 const text = row.textContent.toLowerCase();
                 const matchSearch = !q || text.includes(q);
                 const matchStatus = !status || row.dataset.status === status;
-                row.style.display = matchSearch && matchStatus ? '' : 'none';
+                const matchPriority = !priority || row.dataset.priority === priority;
+                row.style.display = matchSearch && matchStatus && matchPriority ? '' : 'none';
             });
         }
 
         tableSearch?.addEventListener('input', filterTable);
         statusFilter?.addEventListener('change', filterTable);
+        priorityFilter?.addEventListener('change', filterTable);
     }
 })();

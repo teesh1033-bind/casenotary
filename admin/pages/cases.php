@@ -33,6 +33,13 @@ require __DIR__ . '/../includes/header.php';
             <option value="completed">Completed</option>
             <option value="closed">Closed</option>
         </select>
+        <select class="form-select form-select-sm table-filter" id="priorityFilter">
+            <option value="">All priorities</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+        </select>
     </div>
     <div class="card-body p-0">
         <?php if (empty($cases)): ?>
@@ -58,7 +65,7 @@ require __DIR__ . '/../includes/header.php';
                     </thead>
                     <tbody>
                         <?php foreach ($cases as $case): ?>
-                            <tr data-status="<?= e($case['status']) ?>">
+                            <tr data-status="<?= e($case['status']) ?>" data-priority="<?= e($case['priority']) ?>">
                                 <td>
                                     <a href="<?= url('pages/case-view.php?id=' . $case['id']) ?>" class="cases-table-link">
                                         <strong><?= e($case['case_number']) ?></strong>

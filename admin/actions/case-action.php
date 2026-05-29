@@ -70,7 +70,8 @@ try {
 
         case 'update_status':
             Auth::requireAdmin();
-            CaseService::updateStatus($caseId, $_POST['status'] ?? 'pending');
+            $newStatus = $_POST['status'] ?? 'pending';
+            CaseService::updateStatus($caseId, $newStatus, Auth::id());
             flash('success', 'Case status updated.');
             redirectCase($caseId);
             break;

@@ -15,9 +15,28 @@ $pageSubtitle = 'Your invoices and payment history';
 $invoices = getClientInvoices($clientId);
 $payments = getClientPayments($clientId);
 $stats = getClientDashboardStats($clientId);
+$stripeEnabled = StripeService::isConfigured();
+
+if (!empty($_GET['cancelled'])) {
+    flash('error', 'Payment was cancelled.');
+}
+
+$successMsg = flash('success');
+$errorMsg   = flash('error');
 
 require __DIR__ . '/../includes/header.php';
 ?>
+
+<?php if ($successMsg): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert"><?= e($successMsg) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+<?php if ($errorMsg): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert"><?= e($errorMsg) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
 
 <div class="row g-3 mb-4">
     <div class="col-md-4">
@@ -55,6 +74,9 @@ require __DIR__ . '/../includes/header.php';
             <h2 class="saas-card-title">Invoices</h2>
             <p class="saas-card-subtitle mb-0"><?= count($invoices) ?> invoice(s)</p>
         </div>
+        <?php if ($stripeEnabled): ?>
+            <span class="badge bg-light text-dark"><i class="bi bi-shield-check"></i> Secure Stripe checkout</span>
+        <?php endif; ?>
     </div>
     <div class="card-body p-0">
         <?php if (empty($invoices)): ?>
@@ -72,11 +94,16 @@ require __DIR__ . '/../includes/header.php';
                             <th>Amount</th>
                             <th>Due Date</th>
                             <th>Status</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($invoices as $invoice): ?>
-                            <?php $status = $invoice['payment_status'] ?? $invoice[invoiceStatusColumn()] ?? 'pending'; ?>
+                            <?php
+                            $status = effectiveInvoiceStatus($invoice);
+                            $remaining = CaseService::getInvoiceRemainingBalance($invoice);
+                            $canPay = in_array($status, ['pending', 'overdue', 'partially_paid'], true) && $remaining > 0;
+                            ?>
                             <tr>
                                 <td><strong><?= e($invoice['invoice_number']) ?></strong></td>
                                 <td>
@@ -89,9 +116,26 @@ require __DIR__ . '/../includes/header.php';
                                         <span class="text-muted">—</span>
                                     <?php endif; ?>
                                 </td>
-                                <td><span class="table-primary"><?= formatCurrency((float) ($invoice['total'] ?? 0)) ?></span></td>
+                                <td>
+                                    <span class="table-primary"><?= formatCurrency((float) ($invoice['total'] ?? 0)) ?></span>
+                                    <?php if ($canPay && $remaining < (float) ($invoice['total'] ?? 0)): ?>
+                                        <span class="table-secondary d-block"><?= formatCurrency($remaining) ?> remaining</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="text-muted"><?= !empty($invoice['due_date']) ? formatDate($invoice['due_date']) : '—' ?></td>
                                 <td><?= statusBadge($status) ?></td>
+                                <td class="text-end">
+                                    <?php if (!empty($invoice['pdf_path'])): ?>
+                                        <a href="<?= adminUrl('actions/document-download.php?path=' . urlencode($invoice['pdf_path'])) ?>" class="btn btn-soft btn-sm" target="_blank">PDF</a>
+                                    <?php endif; ?>
+                                    <?php if ($canPay && $stripeEnabled): ?>
+                                        <form method="post" action="<?= clientUrl('actions/stripe-checkout.php') ?>" class="d-inline">
+                                            <?= CSRF::field() ?>
+                                            <input type="hidden" name="invoice_id" value="<?= (int) $invoice['id'] ?>">
+                                            <button type="submit" class="btn btn-primary btn-sm">Pay <?= formatCurrency($remaining) ?></button>
+                                        </form>
+                                    <?php endif; ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -124,6 +168,7 @@ require __DIR__ . '/../includes/header.php';
                             <th>Method</th>
                             <th>Status</th>
                             <th>Paid At</th>
+                            <th>Receipt</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -134,9 +179,18 @@ require __DIR__ . '/../includes/header.php';
                                     <span class="table-secondary d-block"><?= formatCurrency((float) ($payment['invoice_total'] ?? 0)) ?></span>
                                 </td>
                                 <td><span class="table-primary"><?= formatCurrency((float) $payment['amount']) ?></span></td>
-                                <td><?= e(ucwords(str_replace('_', ' ', $payment['payment_method'] ?? 'other'))) ?></td>
+                                <td><?= paymentMethodBadge($payment['payment_method'] ?? 'other') ?></td>
                                 <td><?= paymentStatusBadge(paymentStatusValue($payment)) ?></td>
                                 <td class="text-muted"><?= formatDateTime($payment['paid_at'] ?? $payment['created_at']) ?></td>
+                                <td>
+                                    <?php if (!empty($payment['receipt_id'])): ?>
+                                        <a href="<?= clientUrl('actions/receipt-download.php?id=' . (int) $payment['receipt_id']) ?>" class="btn btn-soft btn-sm" target="_blank">
+                                            <i class="bi bi-receipt"></i> Receipt
+                                        </a>
+                                    <?php else: ?>
+                                        —
+                                    <?php endif; ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

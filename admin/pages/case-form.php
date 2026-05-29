@@ -68,9 +68,14 @@ require __DIR__ . '/../includes/header.php';
                     <div class="col-lg-4">
                         <label class="case-form-label" for="status">Status</label>
                         <select id="status" name="status" class="form-select case-form-control">
-                            <?php foreach (['pending','in_progress','waiting_for_client','completed','closed'] as $st): ?>
+                            <?php
+                            $statusOptions = $isEdit
+                                ? CaseService::getAllowedStatuses($case['status'] ?? 'pending')
+                                : CaseService::STATUSES;
+                            foreach ($statusOptions as $st):
+                            ?>
                                 <option value="<?= $st ?>" <?= ($case['status'] ?? 'pending') === $st ? 'selected' : '' ?>>
-                                    <?= ucwords(str_replace('_', ' ', $st)) ?>
+                                    <?= CaseService::statusLabel($st) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>

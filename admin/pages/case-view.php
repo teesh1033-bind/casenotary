@@ -14,6 +14,7 @@ if (!$workspace) {
 $case       = $workspace['case'];
 $pageTitle  = $case['case_number'];
 $pageSubtitle = $case['title'];
+$allowedStatuses = CaseService::getAllowedStatuses($case['status']);
 
 $successMsg = flash('success');
 $errorMsg   = flash('error');
@@ -51,13 +52,23 @@ require __DIR__ . '/../includes/header.php';
                 <?= CSRF::field() ?>
                 <input type="hidden" name="action" value="update_status">
                 <input type="hidden" name="case_id" value="<?= $caseId ?>">
-                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <?php foreach (['pending','in_progress','waiting_for_client','completed','closed'] as $st): ?>
+                <label class="case-status-label" for="caseStatusSelect">Status</label>
+                <select id="caseStatusSelect" name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <?php foreach ($allowedStatuses as $st): ?>
                         <option value="<?= $st ?>" <?= $case['status'] === $st ? 'selected' : '' ?>>
-                            <?= ucwords(str_replace('_', ' ', $st)) ?>
+                            <?= CaseService::statusLabel($st) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <?php
+                $nextStatuses = array_values(array_filter(
+                    CaseService::STATUS_TRANSITIONS[$case['status']] ?? [],
+                    fn($st) => $st !== $case['status']
+                ));
+                if ($nextStatuses !== []):
+                ?>
+                <small class="case-status-hint">Next: <?= e(implode(', ', array_map([CaseService::class, 'statusLabel'], $nextStatuses))) ?></small>
+                <?php endif; ?>
             </form>
             <a href="<?= url('pages/case-form.php?id=' . $caseId) ?>" class="btn btn-soft btn-sm">Edit</a>
             <div class="dropdown">
@@ -140,7 +151,11 @@ require __DIR__ . '/../includes/header.php';
                             <?php foreach (array_slice($workspace['activity'], 0, 5) as $ev): ?>
                                 <div class="case-mini-activity-item">
                                     <i class="bi <?= caseActivityIcon($ev['type']) ?>"></i>
-                                    <div><strong><?= e($ev['title']) ?></strong><small><?= timeAgo($ev['time']) ?></small></div>
+                                    <div>
+                                        <strong><?= e($ev['title']) ?></strong>
+                                        <?php if (!empty($ev['detail'])): ?><small class="d-block text-muted"><?= e($ev['detail']) ?></small><?php endif; ?>
+                                        <small><?= timeAgo($ev['time']) ?></small>
+                                    </div>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -163,15 +178,28 @@ require __DIR__ . '/../includes/header.php';
                     </form>
                 </div>
                 <p class="case-panel-hint">PDF, DOC, DOCX, JPG, PNG, ZIP — max 10MB</p>
+                <?php if (!empty($workspace['documents'])): ?>
+                <div class="case-toolbar">
+                    <div class="case-toolbar-search">
+                        <i class="bi bi-search"></i>
+                        <input type="search" class="form-control form-control-sm case-filter-input" data-filter-target="#documentsTable tbody tr" placeholder="Search documents...">
+                    </div>
+                    <select class="form-select form-select-sm case-filter-select" data-filter-target="#documentsTable tbody tr" data-filter-attr="data-source">
+                        <option value="">All sources</option>
+                        <option value="admin">Admin</option>
+                        <option value="client">Client</option>
+                    </select>
+                </div>
+                <?php endif; ?>
                 <?php if (empty($workspace['documents'])): ?>
                     <div class="empty-state py-4"><i class="bi bi-folder2-open"></i><p>No documents yet.</p></div>
                 <?php else: ?>
                     <div class="table-responsive">
-                        <table class="table saas-table mb-0">
+                        <table class="table saas-table mb-0" id="documentsTable">
                             <thead><tr><th>File</th><th>Source</th><th>Uploaded By</th><th>Date</th><th></th></tr></thead>
                             <tbody>
                                 <?php foreach ($workspace['documents'] as $doc): ?>
-                                    <tr>
+                                    <tr data-source="<?= e($doc['upload_source'] ?? 'admin') ?>">
                                         <td><span class="table-primary"><?= e($doc['original_name'] ?? $doc['file_name']) ?></span><small class="d-block text-muted"><?= strtoupper(e($doc['file_type'] ?? '')) ?> · <?= number_format(($doc['file_size'] ?? 0) / 1024, 1) ?> KB</small></td>
                                         <td><span class="status-badge badge-<?= ($doc['upload_source'] ?? 'admin') === 'client' ? 'scheduled' : 'default' ?>"><?= ucfirst($doc['upload_source'] ?? 'admin') ?></span></td>
                                         <td><?= e($doc['uploader_name'] ?? 'System') ?></td>
@@ -183,7 +211,7 @@ require __DIR__ . '/../includes/header.php';
                                                 <input type="hidden" name="action" value="delete_document">
                                                 <input type="hidden" name="case_id" value="<?= $caseId ?>">
                                                 <input type="hidden" name="document_id" value="<?= (int) $doc['id'] ?>">
-                                                <button type="submit" class="btn btn-soft btn-sm text-danger" aria-label="Delete"><i class="bi bi-trash"></i></button>
+                                                <button type="submit" class="btn btn-soft-danger btn-sm">Delete</button>
                                             </form>
                                         </td>
                                     </tr>
@@ -212,7 +240,7 @@ require __DIR__ . '/../includes/header.php';
                                     <li>
                                         <div><strong><?= e($q['quotation_number']) ?></strong><small><?= formatCurrency((float) $q['total']) ?> · <?= formatDate($q['created_at']) ?></small></div>
                                         <?php if (!empty($q['pdf_path'])): ?>
-                                            <a href="<?= url('actions/document-download.php?path=' . urlencode($q['pdf_path'])) ?>" class="btn btn-soft btn-sm" target="_blank">View</a>
+                                            <a href="<?= url('actions/document-download.php?path=' . urlencode($q['pdf_path'])) ?>" class="btn btn-soft btn-sm" target="_blank"><i class="bi bi-file-pdf"></i> PDF</a>
                                         <?php endif; ?>
                                     </li>
                                 <?php endforeach; ?>
@@ -234,7 +262,7 @@ require __DIR__ . '/../includes/header.php';
                                     <li>
                                         <div><strong><?= e($p['proposal_number']) ?></strong><small><?= formatCurrency((float) $p['amount']) ?> · <?= formatDate($p['created_at']) ?></small></div>
                                         <?php if (!empty($p['pdf_path'])): ?>
-                                            <a href="<?= url('actions/document-download.php?path=' . urlencode($p['pdf_path'])) ?>" class="btn btn-soft btn-sm" target="_blank">View PDF</a>
+                                            <a href="<?= url('actions/document-download.php?path=' . urlencode($p['pdf_path'])) ?>" class="btn btn-soft btn-sm" target="_blank"><i class="bi bi-file-pdf"></i> PDF</a>
                                         <?php endif; ?>
                                     </li>
                                 <?php endforeach; ?>
@@ -252,22 +280,38 @@ require __DIR__ . '/../includes/header.php';
                     <h3 class="case-panel-title mb-0">Invoices</h3>
                     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalInvoice"><i class="bi bi-plus"></i> Generate Invoice</button>
                 </div>
+                <?php if (!empty($workspace['invoices'])): ?>
+                <div class="case-toolbar">
+                    <div class="case-toolbar-search">
+                        <i class="bi bi-search"></i>
+                        <input type="search" class="form-control form-control-sm case-filter-input" data-filter-target="#invoicesTable tbody tr" placeholder="Search invoices...">
+                    </div>
+                    <select class="form-select form-select-sm case-filter-select" data-filter-target="#invoicesTable tbody tr" data-filter-attr="data-status">
+                        <option value="">All statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="paid">Paid</option>
+                        <option value="partially_paid">Partially Paid</option>
+                        <option value="overdue">Overdue</option>
+                    </select>
+                </div>
+                <?php endif; ?>
                 <?php if (empty($workspace['invoices'])): ?>
                     <div class="empty-state py-4"><i class="bi bi-receipt"></i><p>No invoices yet.</p></div>
                 <?php else: ?>
                     <div class="table-responsive">
-                        <table class="table saas-table mb-0">
+                        <table class="table saas-table mb-0" id="invoicesTable">
                             <thead><tr><th>Invoice #</th><th>Amount</th><th>Due Date</th><th>Status</th><th></th></tr></thead>
                             <tbody>
                                 <?php foreach ($workspace['invoices'] as $inv): ?>
-                                    <tr>
+                                    <?php $invStatus = $inv['payment_status'] ?? $inv['status'] ?? 'pending'; ?>
+                                    <tr data-status="<?= e($invStatus) ?>">
                                         <td><strong><?= e($inv['invoice_number']) ?></strong></td>
                                         <td><?= formatCurrency((float) $inv['total']) ?></td>
                                         <td><?= formatDate($inv['due_date']) ?></td>
-                                        <td><?= statusBadge($inv['payment_status'] ?? $inv['status'] ?? 'pending') ?></td>
+                                        <td><?= statusBadge($invStatus) ?></td>
                                         <td>
                                             <?php if (!empty($inv['pdf_path'])): ?>
-                                                <a href="<?= url('actions/document-download.php?path=' . urlencode($inv['pdf_path'])) ?>" class="btn btn-soft btn-sm" target="_blank">View</a>
+                                                <a href="<?= url('actions/document-download.php?path=' . urlencode($inv['pdf_path'])) ?>" class="btn btn-soft btn-sm" target="_blank"><i class="bi bi-file-pdf"></i> PDF</a>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
@@ -288,16 +332,22 @@ require __DIR__ . '/../includes/header.php';
                         <?php if (empty($workspace['payments'])): ?>
                             <p class="text-muted small py-3">No payments recorded.</p>
                         <?php else: ?>
+                            <div class="case-toolbar mb-2">
+                                <div class="case-toolbar-search">
+                                    <i class="bi bi-search"></i>
+                                    <input type="search" class="form-control form-control-sm case-filter-input" data-filter-target="#paymentsTable tbody tr" placeholder="Search payments...">
+                                </div>
+                            </div>
                             <div class="table-responsive">
-                                <table class="table saas-table mb-0">
+                                <table class="table saas-table mb-0" id="paymentsTable">
                                     <thead><tr><th>Invoice</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th></tr></thead>
                                     <tbody>
                                         <?php foreach ($workspace['payments'] as $pay): ?>
                                             <tr>
                                                 <td><?= e($pay['invoice_number']) ?></td>
                                                 <td><strong><?= formatCurrency((float) $pay['amount']) ?></strong></td>
-                                                <td><?= e(ucwords(str_replace('_', ' ', $pay['payment_method'] ?? ''))) ?></td>
-                                                <td><?= paymentStatusBadge($pay['payment_status']) ?></td>
+                                    <td><?= paymentMethodBadge($pay['payment_method'] ?? 'other') ?></td>
+                                    <td><?= paymentStatusBadge($pay['payment_status'] ?? paymentStatusValue($pay)) ?></td>
                                                 <td class="text-muted"><?= formatDateTime($pay['paid_at'] ?? $pay['created_at']) ?></td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -362,7 +412,15 @@ require __DIR__ . '/../includes/header.php';
                     <textarea name="note" class="form-control" rows="3" placeholder="Add an internal note (admin only)..." required></textarea>
                     <button type="submit" class="btn btn-primary btn-sm mt-2">Add Note</button>
                 </form>
-                <div class="case-notes-scroll">
+                <?php if (!empty($workspace['notes'])): ?>
+                <div class="case-toolbar mb-2">
+                    <div class="case-toolbar-search">
+                        <i class="bi bi-search"></i>
+                        <input type="search" class="form-control form-control-sm case-filter-input" data-filter-target="#notesList .case-note-item" placeholder="Search notes...">
+                    </div>
+                </div>
+                <?php endif; ?>
+                <div class="case-notes-scroll" id="notesList">
                     <?php if (empty($workspace['notes'])): ?>
                         <p class="text-muted small">No notes yet.</p>
                     <?php else: ?>
@@ -380,19 +438,46 @@ require __DIR__ . '/../includes/header.php';
         <!-- Activity -->
         <div class="tab-pane fade" id="activity">
             <div class="case-panel">
-                <h3 class="case-panel-title">Case Activity Timeline</h3>
+                <div class="case-panel-header">
+                    <h3 class="case-panel-title mb-0">Case Activity Timeline</h3>
+                    <?php if (!empty($workspace['activity'])): ?>
+                    <select class="form-select form-select-sm case-filter-select" id="activityTypeFilter" data-filter-target="#activityTimeline .case-timeline-item" data-filter-attr="data-type">
+                        <option value="">All activity</option>
+                        <option value="case_created">Case created</option>
+                        <option value="status">Status changes</option>
+                        <option value="document">Documents</option>
+                        <option value="quotation">Quotations</option>
+                        <option value="proposal">Proposals</option>
+                        <option value="invoice">Invoices</option>
+                        <option value="payment">Payments</option>
+                        <option value="note">Notes</option>
+                        <option value="appointment">Appointments</option>
+                    </select>
+                    <?php endif; ?>
+                </div>
                 <div class="case-activity-scroll">
                     <?php if (empty($workspace['activity'])): ?>
-                        <p class="text-muted small">No activity recorded.</p>
+                        <div class="empty-state py-4"><i class="bi bi-activity"></i><p>No activity recorded yet.</p></div>
                     <?php else: ?>
-                        <ul class="case-timeline">
-                            <?php foreach ($workspace['activity'] as $ev): ?>
-                                <li class="case-timeline-item">
-                                    <div class="case-timeline-icon"><i class="bi <?= caseActivityIcon($ev['type']) ?>"></i></div>
+                        <ul class="case-timeline" id="activityTimeline">
+                            <?php
+                            $lastGroup = '';
+                            foreach ($workspace['activity'] as $ev):
+                                $group = caseActivityDateLabel($ev['time']);
+                                if ($group !== $lastGroup):
+                                    $lastGroup = $group;
+                            ?>
+                                <li class="case-timeline-group"><?= e($group) ?></li>
+                            <?php endif; ?>
+                                <li class="case-timeline-item" data-type="<?= e($ev['type']) ?>">
+                                    <div class="case-timeline-icon <?= caseActivityTone($ev['type']) ?>"><i class="bi <?= caseActivityIcon($ev['type']) ?>"></i></div>
                                     <div class="case-timeline-body">
                                         <strong><?= e($ev['title']) ?></strong>
-                                        <span><?= e($ev['detail']) ?></span>
-                                        <time><?= timeAgo($ev['time']) ?></time>
+                                        <?php if (!empty($ev['detail'])): ?><span><?= e($ev['detail']) ?></span><?php endif; ?>
+                                        <div class="case-timeline-meta">
+                                            <time><?= formatDateTime($ev['time']) ?></time>
+                                            <?php if (!empty($ev['actor'])): ?><span class="case-timeline-actor">· <?= e($ev['actor']) ?></span><?php endif; ?>
+                                        </div>
                                     </div>
                                 </li>
                             <?php endforeach; ?>
@@ -463,9 +548,7 @@ $pageScripts = '<script>
 document.addEventListener("DOMContentLoaded", function() {
     var hash = window.location.hash.replace("#", "");
     var tabAliases = { invoices: "invoices", payments: "invoice-payments" };
-    if (hash && tabAliases[hash]) {
-        hash = tabAliases[hash];
-    }
+    if (hash && tabAliases[hash]) hash = tabAliases[hash];
     if (hash) {
         var tabBtn = document.querySelector("[data-bs-target=\"#" + hash + "\"]");
         if (tabBtn) new bootstrap.Tab(tabBtn).show();
@@ -476,6 +559,39 @@ document.addEventListener("DOMContentLoaded", function() {
             var target = this.getAttribute("data-case-tab");
             var tabBtn = document.querySelector("[data-bs-target=\"#" + target + "\"]");
             if (tabBtn) new bootstrap.Tab(tabBtn).show();
+        });
+    });
+
+    function filterRows(containerSelector, query, attr, value) {
+        document.querySelectorAll(containerSelector).forEach(function(row) {
+            var text = row.textContent.toLowerCase();
+            var matchSearch = !query || text.includes(query);
+            var matchAttr = !attr || !value || row.getAttribute(attr) === value;
+            row.style.display = matchSearch && matchAttr ? "" : "none";
+        });
+    }
+
+    document.querySelectorAll(".case-filter-input").forEach(function(input) {
+        input.addEventListener("input", function() {
+            var target = this.dataset.filterTarget;
+            var panel = this.closest(".case-panel");
+            var select = panel ? panel.querySelector(".case-filter-select") : null;
+            var attr = select ? select.dataset.filterAttr : null;
+            var val = select ? select.value : "";
+            filterRows(target, (this.value || "").toLowerCase(), attr, val);
+        });
+    });
+
+    document.querySelectorAll(".case-filter-select").forEach(function(select) {
+        select.addEventListener("change", function() {
+            var target = this.dataset.filterTarget;
+            var panel = this.closest(".case-panel") || this.closest(".tab-pane");
+            var search = panel ? panel.querySelector(".case-filter-input") : null;
+            var q = search ? (search.value || "").toLowerCase() : "";
+            filterRows(target, q, this.dataset.filterAttr, this.value);
+            document.querySelectorAll(target.replace(/[^ ]+$/, "") + " .case-timeline-group").forEach(function(g) {
+                g.style.display = "";
+            });
         });
     });
 });

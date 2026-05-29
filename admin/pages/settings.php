@@ -112,8 +112,8 @@ require __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
             <?php else: ?>
-                <div class="alert alert-warning border-0 small">
-                    Stripe keys are stored for future online checkout. Manual payments can still be recorded from the Payments page or case workspace.
+                <div class="alert alert-info border-0 small mb-3">
+                    Add your Stripe publishable and secret keys to enable client online checkout. Manual payments can still be recorded from the Payments page or case workspace.
                 </div>
                 <div class="row g-3">
                     <div class="col-12">

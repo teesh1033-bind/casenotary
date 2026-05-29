@@ -101,6 +101,115 @@ function paymentStatusValue(array $payment): string
     return $payment['payment_status'] ?? $payment['status'] ?? 'pending';
 }
 
+function invoiceStatusValue(array $invoice): string
+{
+    $col = invoiceStatusColumn();
+
+    return $invoice['payment_status'] ?? $invoice[$col] ?? $invoice['status'] ?? 'pending';
+}
+
+function effectiveInvoiceStatus(array $invoice): string
+{
+    $status = invoiceStatusValue($invoice);
+
+    if (in_array($status, ['paid'], true)) {
+        return $status;
+    }
+
+    if (!empty($invoice['due_date']) && strtotime($invoice['due_date']) < strtotime('today')) {
+        if (in_array($status, ['pending', 'partially_paid', 'overdue'], true)) {
+            return 'overdue';
+        }
+    }
+
+    return $status;
+}
+
+function syncOverdueInvoices(): int
+{
+    $statusCol = invoiceStatusColumn();
+
+    $overdueRows = Database::fetchAll(
+        "SELECT i.*, cl.user_id AS client_user_id
+         FROM invoices i
+         JOIN clients cl ON cl.id = i.client_id
+         WHERE i.{$statusCol} IN ('pending', 'partially_paid')
+           AND i.due_date < CURDATE()"
+    );
+
+    foreach ($overdueRows as $invoice) {
+        Database::query(
+            "UPDATE invoices SET {$statusCol} = 'overdue', updated_at = NOW() WHERE id = ?",
+            [(int) $invoice['id']]
+        );
+
+        $message = 'Invoice ' . ($invoice['invoice_number'] ?? '') . ' is overdue. Due ' . formatDate($invoice['due_date']) . '.';
+        $caseId  = (int) ($invoice['case_id'] ?? 0);
+
+        if ($caseId) {
+            CaseService::notifyCaseEvent(
+                $caseId,
+                'invoice',
+                'Invoice overdue',
+                ($invoice['invoice_number'] ?? '') . ' — due ' . formatDate($invoice['due_date']),
+                'pages/case-view.php?id=' . $caseId . '#invoice-payments'
+            );
+        } else {
+            if (!empty($invoice['client_user_id'])) {
+                createNotification(
+                    (int) $invoice['client_user_id'],
+                    'Overdue Invoice',
+                    $message,
+                    'invoice',
+                    clientUrl('pages/payments.php')
+                );
+            }
+
+            foreach (Database::fetchAll("SELECT id FROM users WHERE role = 'admin' AND status = 'active'") as $admin) {
+                createNotification(
+                    (int) $admin['id'],
+                    'Overdue Invoice',
+                    $message . ' (' . formatCurrency((float) ($invoice['total'] ?? 0)) . ')',
+                    'invoice',
+                    url('pages/payments.php')
+                );
+            }
+        }
+    }
+
+    return count($overdueRows);
+}
+
+function getOverdueInvoices(int $limit = 50): array
+{
+    syncOverdueInvoices();
+    $statusCol = invoiceStatusColumn();
+
+    return Database::fetchAll(
+        "SELECT i.*, i.{$statusCol} AS payment_status, cl.first_name, cl.last_name, cl.company_name,
+                cs.case_number, cs.title AS case_title
+         FROM invoices i
+         JOIN clients cl ON cl.id = i.client_id
+         LEFT JOIN cases cs ON cs.id = i.case_id
+         WHERE i.{$statusCol} = 'overdue'
+         ORDER BY i.due_date ASC
+         LIMIT ?",
+        [$limit]
+    );
+}
+
+function createNotification(int $userId, string $title, string $message, string $type, ?string $link = null): void
+{
+    try {
+        Database::insert(
+            'INSERT INTO notifications (user_id, title, message, type, is_read, link, created_at) VALUES (?, ?, ?, ?, 0, ?, NOW())',
+            [$userId, $title, $message, $type, $link]
+        );
+    } catch (Throwable $e) {
+        // optional
+    }
+}
+
 function redirect(string $path): void
 {
     header('Location: ' . url($path));
@@ -288,6 +397,7 @@ function clearCompanySettingsCache(): void
 
 function getDashboardStats(): array
 {
+    syncOverdueInvoices();
     $invoiceStatus = invoiceStatusColumn();
     $paymentStatus = paymentStatusColumn();
     $appointmentStart = appointmentStartColumn();
@@ -586,10 +696,11 @@ function getAllNotifications(int $userId, int $limit = 100): array
 
 function getPendingInvoices(): array
 {
+    syncOverdueInvoices();
     $statusCol = invoiceStatusColumn();
 
     return Database::fetchAll(
-        "SELECT i.*, cl.first_name, cl.last_name, cl.company_name, cs.case_number, cs.title AS case_title
+        "SELECT i.*, i.{$statusCol} AS payment_status, cl.first_name, cl.last_name, cl.company_name, cs.case_number, cs.title AS case_title
          FROM invoices i
          JOIN clients cl ON cl.id = i.client_id
          LEFT JOIN cases cs ON cs.id = i.case_id
@@ -756,9 +867,13 @@ function getInvoiceChartData(): array
 function getWeeklyPaymentsChartData(): array
 {
     $paymentStatus = paymentStatusColumn();
-    $dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    $labels    = [];
     $payments  = array_fill(0, 7, 0.0);
     $invoices  = array_fill(0, 7, 0.0);
+
+    for ($i = 6; $i >= 0; $i--) {
+        $labels[] = date('D j', strtotime("-{$i} days"));
+    }
 
     $rows = Database::fetchAll(
         "SELECT DATE(paid_at) AS day_date, COALESCE(SUM(amount), 0) AS total
@@ -769,9 +884,9 @@ function getWeeklyPaymentsChartData(): array
     );
 
     foreach ($rows as $row) {
-        $dayIndex = (int) date('N', strtotime($row['day_date'])) - 1;
-        if ($dayIndex >= 0 && $dayIndex < 7) {
-            $payments[$dayIndex] = (float) $row['total'];
+        $idx = sparklineDayIndex($row['day_date']);
+        if ($idx !== null) {
+            $payments[$idx] = (float) $row['total'];
         }
     }
 
@@ -783,17 +898,28 @@ function getWeeklyPaymentsChartData(): array
     );
 
     foreach ($invoiceRows as $row) {
-        $dayIndex = (int) date('N', strtotime($row['day_date'])) - 1;
-        if ($dayIndex >= 0 && $dayIndex < 7) {
-            $invoices[$dayIndex] = max(0, (float) $row['total'] - $payments[$dayIndex]);
+        $idx = sparklineDayIndex($row['day_date']);
+        if ($idx !== null) {
+            $invoices[$idx] = (float) $row['total'];
         }
     }
 
     return [
-        'labels'   => $dayLabels,
+        'labels'   => $labels,
         'payments' => $payments,
         'invoices' => $invoices,
     ];
+}
+
+function chartSeriesHasData(array $series): bool
+{
+    foreach ($series as $value) {
+        if ((float) $value > 0) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function getDashboardTrends(array $stats): array
@@ -997,8 +1123,32 @@ function paymentStatusBadge(string $status): string
         'refunded'  => 'badge-closed',
     ];
 
+    $labels = [
+        'pending'   => 'Pending',
+        'completed' => 'Completed',
+        'failed'    => 'Failed',
+        'refunded'  => 'Refunded',
+    ];
+
     $class = $map[$status] ?? 'badge-default';
-    return sprintf('<span class="status-badge %s">%s</span>', $class, e(ucfirst($status)));
+    $label = $labels[$status] ?? ucfirst(str_replace('_', ' ', $status));
+
+    return sprintf('<span class="status-badge %s">%s</span>', $class, e($label));
+}
+
+function paymentMethodBadge(string $method): string
+{
+    $map = [
+        'stripe'         => ['badge-scheduled', 'Stripe'],
+        'bank_transfer'  => ['badge-default', 'Bank Transfer'],
+        'cash'           => ['badge-default', 'Cash'],
+        'check'          => ['badge-default', 'Check'],
+        'other'          => ['badge-default', 'Other'],
+    ];
+
+    [$class, $label] = $map[$method] ?? ['badge-default', ucwords(str_replace('_', ' ', $method))];
+
+    return sprintf('<span class="status-badge %s">%s</span>', $class, e($label));
 }
 
 function getAllClients(): array
@@ -1025,15 +1175,18 @@ function getAllCases(): array
 
 function getAllPayments(): array
 {
+    syncOverdueInvoices();
+    $paymentCol = paymentStatusColumn();
+
     return Database::fetchAll(
-        'SELECT p.*, p.payment_status AS status, i.invoice_number, i.total AS invoice_total, i.case_id,
+        "SELECT p.*, p.{$paymentCol} AS payment_status, i.invoice_number, i.total AS invoice_total, i.case_id,
                 cl.first_name, cl.last_name, cl.company_name,
                 r.id AS receipt_id, r.receipt_number
          FROM payments p
          JOIN invoices i ON i.id = p.invoice_id
          JOIN clients cl ON cl.id = i.client_id
          LEFT JOIN receipts r ON r.payment_id = p.id
-         ORDER BY p.created_at DESC'
+         ORDER BY COALESCE(p.paid_at, p.created_at) DESC"
     );
 }
 
@@ -1248,6 +1401,7 @@ function getClientAppointments(int $clientId): array
 
 function getClientInvoices(int $clientId): array
 {
+    syncOverdueInvoices();
     $statusCol = invoiceStatusColumn();
 
     return Database::fetchAll(
@@ -1265,11 +1419,13 @@ function getClientPayments(int $clientId): array
     $paymentStatus = paymentStatusColumn();
 
     return Database::fetchAll(
-        "SELECT p.*, p.{$paymentStatus} AS status, i.invoice_number, i.total AS invoice_total
+        "SELECT p.*, p.{$paymentStatus} AS payment_status, i.invoice_number, i.total AS invoice_total,
+                r.id AS receipt_id, r.receipt_number
          FROM payments p
          JOIN invoices i ON i.id = p.invoice_id
+         LEFT JOIN receipts r ON r.payment_id = p.id
          WHERE i.client_id = ?
-         ORDER BY p.created_at DESC",
+         ORDER BY COALESCE(p.paid_at, p.created_at) DESC",
         [$clientId]
     );
 }
@@ -1306,8 +1462,48 @@ function caseActivityIcon(string $type): string
         'payment'      => 'bi-cash-coin',
         'proposal'     => 'bi-file-text',
         'quotation'    => 'bi-file-earmark-text',
+        'note'         => 'bi-journal-text',
+        'status'       => 'bi-arrow-repeat',
+        'appointment'  => 'bi-calendar-event',
+        'update'       => 'bi-pencil-square',
     ];
+
     return $map[$type] ?? 'bi-activity';
+}
+
+function caseActivityTone(string $type): string
+{
+    $map = [
+        'case_created' => 'tone-teal',
+        'document'     => 'tone-blue',
+        'invoice'      => 'tone-orange',
+        'payment'      => 'tone-green',
+        'proposal'     => 'tone-purple',
+        'quotation'    => 'tone-teal',
+        'note'         => 'tone-gray',
+        'status'       => 'tone-indigo',
+        'appointment'  => 'tone-blue',
+        'update'       => 'tone-gray',
+    ];
+
+    return $map[$type] ?? 'tone-gray';
+}
+
+function caseActivityDateLabel(string $datetime): string
+{
+    $time = strtotime($datetime);
+    $today = strtotime('today');
+    $yesterday = strtotime('yesterday');
+
+    if ($time >= $today) {
+        return 'Today';
+    }
+
+    if ($time >= $yesterday) {
+        return 'Yesterday';
+    }
+
+    return date('F j, Y', $time);
 }
 
 function passwordStrengthError(string $password): ?string

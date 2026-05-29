@@ -4,6 +4,64 @@ declare(strict_types=1);
 
 class CaseService
 {
+    public const STATUSES = [
+        'pending',
+        'in_progress',
+        'waiting_for_client',
+        'completed',
+        'closed',
+    ];
+
+    public const STATUS_TRANSITIONS = [
+        'pending'            => ['in_progress', 'waiting_for_client', 'closed'],
+        'in_progress'        => ['waiting_for_client', 'completed', 'closed'],
+        'waiting_for_client' => ['in_progress', 'completed', 'closed'],
+        'completed'          => ['closed', 'in_progress'],
+        'closed'             => ['pending'],
+    ];
+
+    public static function isValidStatus(string $status): bool
+    {
+        return in_array($status, self::STATUSES, true);
+    }
+
+    public static function canTransitionStatus(string $from, string $to): bool
+    {
+        if ($from === $to) {
+            return true;
+        }
+
+        if (!self::isValidStatus($from) || !self::isValidStatus($to)) {
+            return false;
+        }
+
+        return in_array($to, self::STATUS_TRANSITIONS[$from] ?? [], true);
+    }
+
+    public static function getAllowedStatuses(string $current): array
+    {
+        if (!self::isValidStatus($current)) {
+            return self::STATUSES;
+        }
+
+        $options = array_merge([$current], self::STATUS_TRANSITIONS[$current] ?? []);
+
+        return array_values(array_unique($options));
+    }
+
+    public static function statusLabel(string $status): string
+    {
+        return ucwords(str_replace('_', ' ', $status));
+    }
+
+    public static function assertStatusTransition(string $from, string $to): void
+    {
+        if (!self::canTransitionStatus($from, $to)) {
+            throw new RuntimeException(
+                'Cannot change status from ' . self::statusLabel($from) . ' to ' . self::statusLabel($to) . '.'
+            );
+        }
+    }
     public static function generateNumber(string $prefix): string
     {
         $year = date('Y');
@@ -207,6 +265,17 @@ class CaseService
 
     public static function updateCase(int $id, array $data): void
     {
+        $existing = self::getCaseById($id);
+        if (!$existing) {
+            throw new RuntimeException('Case not found.');
+        }
+
+        $newStatus = $data['status'] ?? $existing['status'];
+        if (!self::isValidStatus($newStatus)) {
+            throw new RuntimeException('Invalid case status.');
+        }
+        self::assertStatusTransition($existing['status'], $newStatus);
+
         $instructions = trim($data['client_instructions'] ?? '') ?: null;
 
         try {
@@ -225,7 +294,7 @@ class CaseService
                     !empty($data['assigned_admin_id']) ? (int) $data['assigned_admin_id'] : null,
                     $data['priority'] ?? 'medium',
                     !empty($data['deadline']) ? $data['deadline'] : null,
-                    $data['status'] ?? 'pending',
+                    $newStatus,
                     $id,
                 ]
             );
@@ -244,19 +313,47 @@ class CaseService
                     !empty($data['assigned_admin_id']) ? (int) $data['assigned_admin_id'] : null,
                     $data['priority'] ?? 'medium',
                     !empty($data['deadline']) ? $data['deadline'] : null,
-                    $data['status'] ?? 'pending',
+                    $newStatus,
                     $id,
                 ]
             );
         }
 
+        if ($existing['status'] !== $newStatus) {
+            self::logCaseEvent($id, 'status_changed', [
+                'from' => $existing['status'],
+                'to'   => $newStatus,
+            ], Auth::id());
+        }
+
         self::notifyCaseEvent($id, 'case', 'Case updated', 'Case details were updated.', 'pages/case-view.php?id=' . $id);
     }
 
-    public static function updateStatus(int $id, string $status): void
+    public static function updateStatus(int $id, string $status, ?int $userId = null): void
     {
+        $case = self::getCaseById($id);
+        if (!$case) {
+            throw new RuntimeException('Case not found.');
+        }
+
+        if (!self::isValidStatus($status)) {
+            throw new RuntimeException('Invalid case status.');
+        }
+
+        self::assertStatusTransition($case['status'], $status);
+
+        if ($case['status'] === $status) {
+            return;
+        }
+
         Database::query('UPDATE cases SET status = ?, updated_at = NOW() WHERE id = ?', [$status, $id]);
-        $label = ucwords(str_replace('_', ' ', $status));
+
+        self::logCaseEvent($id, 'status_changed', [
+            'from' => $case['status'],
+            'to'   => $status,
+        ], $userId ?? Auth::id());
+
+        $label = self::statusLabel($status);
         self::notifyCaseEvent($id, 'case', 'Case status updated', "Status changed to {$label}.", 'pages/case-view.php?id=' . $id);
     }
 
@@ -456,12 +553,7 @@ class CaseService
             ]
         );
 
-        self::saveHtmlDocument($caseId, 'quotation', $id, $number, $case, [
-            'title'   => 'Quotation',
-            'number'  => $number,
-            'amount'  => $total,
-            'details' => $case['service_type'],
-        ]);
+        self::saveHtmlDocument($caseId, 'quotation', $id);
 
         self::notifyCaseEvent($caseId, 'document', 'Quotation created', $number, 'pages/case-view.php?id=' . $caseId . '#quotations');
 
@@ -487,12 +579,7 @@ class CaseService
             ]
         );
 
-        self::saveHtmlDocument($caseId, 'proposal', $id, $number, $case, [
-            'title'   => 'Proposal',
-            'number'  => $number,
-            'amount'  => $amount,
-            'details' => nl2br(e($content)),
-        ]);
+        self::saveHtmlDocument($caseId, 'proposal', $id);
 
         self::notifyCaseEvent($caseId, 'document', 'Proposal created', $number, 'pages/case-view.php?id=' . $caseId . '#quotations');
 
@@ -525,16 +612,74 @@ class CaseService
             );
         }
 
-        self::saveHtmlDocument($caseId, 'invoice', $id, $number, $case, [
-            'title'   => 'Invoice',
-            'number'  => $number,
-            'amount'  => $total,
-            'details' => 'Due: ' . formatDate($due),
-        ]);
+        self::saveHtmlDocument($caseId, 'invoice', $id);
 
         self::notifyCaseEvent($caseId, 'invoice', 'Invoice generated', $number . ' — ' . formatCurrency($total), 'pages/case-view.php?id=' . $caseId . '#invoice-payments');
 
         return $id;
+    }
+
+    public static function getInvoicePaidTotal(int $invoiceId): float
+    {
+        $statusCol = paymentStatusColumn();
+
+        return (float) (Database::fetch(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM payments
+             WHERE invoice_id = ? AND {$statusCol} = 'completed'",
+            [$invoiceId]
+        )['total'] ?? 0);
+    }
+
+    public static function getInvoiceRemainingBalance(array $invoice): float
+    {
+        return max(0, round((float) ($invoice['total'] ?? 0) - self::getInvoicePaidTotal((int) $invoice['id']), 2));
+    }
+
+    public static function updateInvoicePaymentStatus(int $invoiceId): void
+    {
+        $invoice = Database::fetch('SELECT * FROM invoices WHERE id = ?', [$invoiceId]);
+        if (!$invoice) {
+            return;
+        }
+
+        $statusCol = invoiceStatusColumn();
+        $paid      = self::getInvoicePaidTotal($invoiceId);
+        $total     = (float) ($invoice['total'] ?? 0);
+
+        if ($paid >= $total - 0.009) {
+            $newStatus = 'paid';
+        } elseif ($paid > 0) {
+            $newStatus = 'partially_paid';
+        } elseif (!empty($invoice['due_date']) && strtotime($invoice['due_date']) < strtotime('today')) {
+            $newStatus = 'overdue';
+        } else {
+            $newStatus = 'pending';
+        }
+
+        Database::query(
+            "UPDATE invoices SET {$statusCol} = ?, updated_at = NOW() WHERE id = ?",
+            [$newStatus, $invoiceId]
+        );
+    }
+
+    public static function recordStripePayment(int $invoiceId, float $amount, string $stripePaymentId): array
+    {
+        if ($stripePaymentId !== '') {
+            $existing = Database::fetch(
+                'SELECT id FROM payments WHERE stripe_payment_id = ? LIMIT 1',
+                [$stripePaymentId]
+            );
+            if ($existing) {
+                return ['success' => true, 'message' => 'Payment already recorded.', 'payment_id' => (int) $existing['id']];
+            }
+        }
+
+        return self::recordPayment($invoiceId, [
+            'amount'            => $amount,
+            'payment_method'    => 'stripe',
+            'stripe_payment_id' => $stripePaymentId,
+            'notes'             => 'Paid via Stripe Checkout',
+        ], 0);
     }
 
     public static function recordPayment(int $invoiceId, array $data, int $adminId): array
@@ -544,32 +689,53 @@ class CaseService
             return ['success' => false, 'message' => 'Invoice not found.'];
         }
 
-        $amount = (float) ($data['amount'] ?? $invoice['total']);
+        $remaining = self::getInvoiceRemainingBalance($invoice);
+        if ($remaining <= 0) {
+            return ['success' => false, 'message' => 'This invoice is already fully paid.'];
+        }
+
+        $amount = isset($data['amount']) && $data['amount'] !== ''
+            ? (float) $data['amount']
+            : $remaining;
         $method = $data['payment_method'] ?? 'bank_transfer';
+        $stripeId = trim($data['stripe_payment_id'] ?? '');
+
+        if ($amount <= 0 || $amount > $remaining + 0.009) {
+            return [
+                'success' => false,
+                'message' => 'Invalid payment amount. Remaining balance: ' . formatCurrency($remaining) . '.',
+            ];
+        }
+
+        if ($stripeId !== '') {
+            $existing = Database::fetch(
+                'SELECT id FROM payments WHERE stripe_payment_id = ? LIMIT 1',
+                [$stripeId]
+            );
+            if ($existing) {
+                return ['success' => true, 'message' => 'Payment already recorded.', 'payment_id' => (int) $existing['id']];
+            }
+        }
+
+        $statusCol = paymentStatusColumn();
 
         try {
             $paymentId = Database::insert(
-                "INSERT INTO payments (invoice_id, amount, payment_method, payment_status, paid_at, notes, created_at)
-                 VALUES (?, ?, ?, 'completed', NOW(), ?, NOW())",
-                [$invoiceId, $amount, $method, $data['notes'] ?? null]
+                "INSERT INTO payments (invoice_id, amount, payment_method, stripe_payment_id, {$statusCol}, paid_at, notes, created_at)
+                 VALUES (?, ?, ?, ?, 'completed', NOW(), ?, NOW())",
+                [$invoiceId, $amount, $method, $stripeId ?: null, $data['notes'] ?? null]
             );
         } catch (Throwable $e) {
             $paymentId = Database::insert(
-                "INSERT INTO payments (invoice_id, amount, payment_method, status, paid_at, notes, created_at)
-                 VALUES (?, ?, ?, 'completed', NOW(), ?, NOW())",
-                [$invoiceId, $amount, $method, $data['notes'] ?? null]
+                "INSERT INTO payments (invoice_id, amount, payment_method, stripe_payment_id, status, paid_at, notes, created_at)
+                 VALUES (?, ?, ?, ?, 'completed', NOW(), ?, NOW())",
+                [$invoiceId, $amount, $method, $stripeId ?: null, $data['notes'] ?? null]
             );
         }
 
-        try {
-            Database::query(
-                "UPDATE invoices SET payment_status = 'paid', updated_at = NOW() WHERE id = ?",
-                [$invoiceId]
-            );
-        } catch (Throwable $e) {
-            Database::query("UPDATE invoices SET status = 'paid', updated_at = NOW() WHERE id = ?", [$invoiceId]);
-        }
+        self::updateInvoicePaymentStatus($invoiceId);
 
+        $invoice['payment_amount'] = $amount;
         $receiptId = self::generateReceipt($paymentId, $invoice);
 
         $caseId = (int) ($invoice['case_id'] ?? 0);
@@ -609,26 +775,28 @@ class CaseService
         }
     }
 
-    public static function getActivity(int $caseId): array
+    public static function getActivity(int $caseId, int $limit = 50): array
     {
         $events = [];
 
         $case = self::getCaseById($caseId);
         if ($case) {
             $events[] = [
-                'type'    => 'case_created',
-                'title'   => 'Case created',
-                'detail'  => $case['case_number'],
-                'time'    => $case['created_at'],
+                'type'   => 'case_created',
+                'title'  => 'Case created',
+                'detail' => $case['case_number'],
+                'time'   => $case['created_at'],
+                'actor'  => null,
             ];
         }
 
         foreach (self::getDocuments($caseId) as $doc) {
             $events[] = [
                 'type'   => 'document',
-                'title'  => ($doc['upload_source'] ?? 'admin') === 'client' ? 'Client upload' : 'Document uploaded',
+                'title'  => ($doc['upload_source'] ?? 'admin') === 'client' ? 'Client uploaded document' : 'Document uploaded',
                 'detail' => $doc['original_name'] ?? $doc['file_name'],
                 'time'   => $doc['created_at'],
+                'actor'  => $doc['uploader_name'] ?? null,
             ];
         }
 
@@ -638,6 +806,7 @@ class CaseService
                 'title'  => 'Invoice generated',
                 'detail' => ($inv['invoice_number'] ?? '') . ' · ' . formatCurrency((float) ($inv['total'] ?? 0)),
                 'time'   => $inv['created_at'],
+                'actor'  => null,
             ];
         }
 
@@ -645,8 +814,9 @@ class CaseService
             $events[] = [
                 'type'   => 'payment',
                 'title'  => 'Payment received',
-                'detail' => formatCurrency((float) ($pay['amount'] ?? 0)),
+                'detail' => formatCurrency((float) ($pay['amount'] ?? 0)) . ' · ' . ($pay['invoice_number'] ?? ''),
                 'time'   => $pay['paid_at'] ?? $pay['created_at'],
+                'actor'  => null,
             ];
         }
 
@@ -654,8 +824,9 @@ class CaseService
             $events[] = [
                 'type'   => 'proposal',
                 'title'  => 'Proposal created',
-                'detail' => $pro['proposal_number'] ?? '',
+                'detail' => ($pro['proposal_number'] ?? '') . ' · ' . formatCurrency((float) ($pro['amount'] ?? 0)),
                 'time'   => $pro['created_at'],
+                'actor'  => null,
             ];
         }
 
@@ -663,14 +834,102 @@ class CaseService
             $events[] = [
                 'type'   => 'quotation',
                 'title'  => 'Quotation created',
-                'detail' => $quo['quotation_number'] ?? '',
+                'detail' => ($quo['quotation_number'] ?? '') . ' · ' . formatCurrency((float) ($quo['total'] ?? 0)),
                 'time'   => $quo['created_at'],
+                'actor'  => null,
             ];
+        }
+
+        foreach (self::getNotes($caseId, true) as $note) {
+            $events[] = [
+                'type'   => 'note',
+                'title'  => 'Internal note added',
+                'detail' => mb_substr($note['note'], 0, 120),
+                'time'   => $note['created_at'],
+                'actor'  => $note['author_name'] ?? null,
+            ];
+        }
+
+        try {
+            foreach (Database::fetchAll(
+                "SELECT a.*, u.name AS actor_name
+                 FROM appointments a
+                 WHERE a.case_id = ?
+                 ORDER BY a.created_at DESC",
+                [$caseId]
+            ) as $appt) {
+                $events[] = [
+                    'type'   => 'appointment',
+                    'title'  => 'Appointment scheduled',
+                    'detail' => ($appt['title'] ?? 'Appointment') . ' · ' . formatDateTime($appt['start_time'] ?? $appt['created_at']),
+                    'time'   => $appt['created_at'],
+                    'actor'  => null,
+                ];
+            }
+        } catch (Throwable $e) {
+            // appointments optional
+        }
+
+        try {
+            foreach (Database::fetchAll(
+                "SELECT al.*, u.name AS actor_name
+                 FROM audit_logs al
+                 LEFT JOIN users u ON u.id = al.user_id
+                 WHERE al.entity_type = 'case' AND al.entity_id = ?
+                 ORDER BY al.created_at DESC",
+                [$caseId]
+            ) as $log) {
+                $details = json_decode($log['details'] ?? '{}', true) ?: [];
+                $event   = self::auditLogToActivityEvent($log['action'], $details, $log['actor_name'] ?? null);
+                if ($event) {
+                    $events[] = array_merge($event, ['time' => $log['created_at']]);
+                }
+            }
+        } catch (Throwable $e) {
+            // audit logs optional
         }
 
         usort($events, static fn($a, $b) => strtotime($b['time']) <=> strtotime($a['time']));
 
-        return array_slice($events, 0, 30);
+        return array_slice($events, 0, $limit);
+    }
+
+    private static function auditLogToActivityEvent(string $action, array $details, ?string $actor): ?array
+    {
+        if ($action === 'status_changed') {
+            $from = self::statusLabel($details['from'] ?? '');
+            $to   = self::statusLabel($details['to'] ?? '');
+
+            return [
+                'type'   => 'status',
+                'title'  => 'Status changed',
+                'detail' => $from . ' → ' . $to,
+                'actor'  => $actor,
+            ];
+        }
+
+        return null;
+    }
+
+    public static function logCaseEvent(int $caseId, string $action, array $details = [], ?int $userId = null): void
+    {
+        try {
+            Database::insert(
+                'INSERT INTO audit_logs (user_id, action, entity_type, entity_id, ip_address, user_agent, details, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
+                [
+                    $userId,
+                    $action,
+                    'case',
+                    $caseId,
+                    $_SERVER['REMOTE_ADDR'] ?? null,
+                    substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500),
+                    json_encode($details, JSON_UNESCAPED_UNICODE),
+                ]
+            );
+        } catch (Throwable $e) {
+            // optional
+        }
     }
 
     public static function getAdmins(): array
@@ -711,25 +970,29 @@ class CaseService
         }
     }
 
-    private static function saveHtmlDocument(int $caseId, string $kind, int $docId, string $number, array $case, array $meta): void
+    private static function saveHtmlDocument(int $caseId, string $kind, int $docId): void
     {
+        $case = self::getCaseById($caseId);
+        if (!$case) {
+            return;
+        }
+
+        $html = match ($kind) {
+            'quotation' => DocumentTemplate::quotation($case, Database::fetch('SELECT * FROM quotations WHERE id = ?', [$docId]) ?: []),
+            'proposal'  => DocumentTemplate::proposal($case, Database::fetch('SELECT * FROM proposals WHERE id = ?', [$docId]) ?: []),
+            'invoice'   => DocumentTemplate::invoice($case, Database::fetch('SELECT * FROM invoices WHERE id = ?', [$docId]) ?: []),
+            default     => '',
+        };
+
+        if ($html === '') {
+            return;
+        }
+
         $config = require __DIR__ . '/../config/config.php';
         $dir    = rtrim($config['upload']['path'], '/\\') . '/cases/' . $caseId . '/generated';
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
-
-        $company = getCompanySettings();
-        $client  = clientFullName($case);
-        $html    = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' . e($meta['title']) . '</title>
-            <style>body{font-family:Montserrat,sans-serif;padding:40px;color:#00182c}h1{color:#3aafa9}
-            .meta{margin:20px 0;padding:16px;background:#f8fafb;border-radius:8px}</style></head><body>
-            <h1>' . e($company['company_name']) . '</h1>
-            <h2>' . e($meta['title']) . ' — ' . e($number) . '</h2>
-            <div class="meta"><p><strong>Case:</strong> ' . e($case['case_number']) . ' — ' . e($case['title']) . '</p>
-            <p><strong>Client:</strong> ' . e($client) . '</p>
-            <p><strong>Amount:</strong> ' . formatCurrency((float) $meta['amount']) . '</p>
-            <p>' . ($meta['details'] ?? '') . '</p></div></body></html>';
 
         $filename = $kind . '_' . $docId . '.html';
         file_put_contents($dir . '/' . $filename, $html);
