@@ -73,12 +73,18 @@ function clientFullName(array $client): string
 
 function appointmentStart(array $appointment): ?string
 {
-    return $appointment['starts_at'] ?? $appointment['start_time'] ?? null;
+    $startsAt  = $appointment['starts_at'] ?? null;
+    $startTime = $appointment['start_time'] ?? null;
+
+    return ($startsAt !== null && $startsAt !== '') ? $startsAt : (($startTime !== null && $startTime !== '') ? $startTime : null);
 }
 
 function appointmentEnd(array $appointment): ?string
 {
-    return $appointment['ends_at'] ?? $appointment['end_time'] ?? null;
+    $endsAt  = $appointment['ends_at'] ?? null;
+    $endTime = $appointment['end_time'] ?? null;
+
+    return ($endsAt !== null && $endsAt !== '') ? $endsAt : (($endTime !== null && $endTime !== '') ? $endTime : null);
 }
 
 function normalizeDateTimeInput(string $value): string
@@ -315,6 +321,28 @@ function appointmentEndColumn(): string
     return $column;
 }
 
+function appointmentStartSql(string $alias = ''): string
+{
+    $prefix = $alias !== '' ? "{$alias}." : '';
+
+    if (Database::columnExists('appointments', 'starts_at') && Database::columnExists('appointments', 'start_time')) {
+        return "COALESCE({$prefix}starts_at, {$prefix}start_time)";
+    }
+
+    return $prefix . appointmentStartColumn();
+}
+
+function appointmentEndSql(string $alias = ''): string
+{
+    $prefix = $alias !== '' ? "{$alias}." : '';
+
+    if (Database::columnExists('appointments', 'ends_at') && Database::columnExists('appointments', 'end_time')) {
+        return "COALESCE({$prefix}ends_at, {$prefix}end_time)";
+    }
+
+    return $prefix . appointmentEndColumn();
+}
+
 function userDisplayNameSql(string $alias = 'u', string $as = 'name'): string
 {
     if (Database::columnExists('users', 'name')) {
@@ -400,7 +428,7 @@ function getDashboardStats(): array
     syncOverdueInvoices();
     $invoiceStatus = invoiceStatusColumn();
     $paymentStatus = paymentStatusColumn();
-    $appointmentStart = appointmentStartColumn();
+    $appointmentStart = appointmentStartSql();
 
     $totalClients = Database::fetch('SELECT COUNT(*) AS count FROM clients')['count'] ?? 0;
 
@@ -555,8 +583,9 @@ function getBusinessActivityFeed(int $limit = 20): array
     }
 
     try {
+        $startSql = appointmentStartSql('a');
         $appointments = Database::fetchAll(
-            "SELECT a.title, a.starts_at, a.created_at, c.first_name, c.last_name
+            "SELECT a.title, {$startSql} AS starts_at, a.created_at, c.first_name, c.last_name
              FROM appointments a
              JOIN clients c ON c.id = a.client_id
              ORDER BY a.created_at DESC
@@ -771,17 +800,17 @@ function getUnreadNotificationCount(int $userId): int
 
 function getUpcomingAppointments(int $limit = 5): array
 {
-    $startCol = appointmentStartColumn();
-    $endCol = appointmentEndColumn();
+    $startSql = appointmentStartSql('a');
+    $endSql   = appointmentEndSql('a');
 
     return Database::fetchAll(
-        "SELECT a.*, a.{$startCol} AS start_time, a.{$endCol} AS end_time,
+        "SELECT a.*, {$startSql} AS start_time, {$endSql} AS end_time,
                 c.company_name, cu.first_name, cu.last_name
          FROM appointments a
          JOIN clients c ON c.id = a.client_id
          JOIN users cu ON cu.id = c.user_id
-         WHERE a.{$startCol} >= NOW() AND a.status IN ('scheduled', 'confirmed')
-         ORDER BY a.{$startCol} ASC
+         WHERE {$startSql} >= NOW() AND a.status IN ('scheduled', 'confirmed')
+         ORDER BY {$startSql} ASC
          LIMIT ?",
         [$limit]
     );
@@ -1192,13 +1221,16 @@ function getAllPayments(): array
 
 function getAllAppointments(): array
 {
+    $startSql = appointmentStartSql('a');
+    $endSql   = appointmentEndSql('a');
+
     return Database::fetchAll(
-        "SELECT a.*, a.starts_at AS start_time, a.ends_at AS end_time,
+        "SELECT a.*, {$startSql} AS start_time, {$endSql} AS end_time,
                 cl.first_name, cl.last_name, cl.company_name, cs.case_number
          FROM appointments a
          JOIN clients cl ON cl.id = a.client_id
          LEFT JOIN cases cs ON cs.id = a.case_id
-         ORDER BY a.starts_at DESC"
+         ORDER BY {$startSql} DESC"
     );
 }
 
@@ -1214,10 +1246,11 @@ function getChatbotContext(): array
         "SELECT COUNT(*) AS count FROM invoices WHERE payment_status IN ('pending', 'overdue', 'partially_paid')"
     )['count'] ?? 0;
 
+    $startSql = appointmentStartSql();
     $nextAppointment = Database::fetch(
-        "SELECT title, starts_at AS start_time FROM appointments
-         WHERE starts_at >= NOW() AND status IN ('scheduled', 'confirmed')
-         ORDER BY starts_at ASC LIMIT 1"
+        "SELECT title, {$startSql} AS start_time FROM appointments
+         WHERE {$startSql} >= NOW() AND status IN ('scheduled', 'confirmed')
+         ORDER BY {$startSql} ASC LIMIT 1"
     );
 
     return [
@@ -1340,8 +1373,9 @@ function getClientDashboardStats(int $clientId): array
         [$clientId]
     )['c'] ?? 0);
 
+    $startSql = appointmentStartSql();
     $upcoming = (int) (Database::fetch(
-        'SELECT COUNT(*) AS c FROM appointments WHERE client_id = ? AND ' . appointmentStartColumn() . " >= NOW() AND status IN ('scheduled','confirmed')",
+        "SELECT COUNT(*) AS c FROM appointments WHERE client_id = ? AND {$startSql} >= NOW() AND status IN ('scheduled','confirmed')",
         [$clientId]
     )['c'] ?? 0);
 
@@ -1375,26 +1409,26 @@ function getClientRecentCases(int $clientId, int $limit = 5): array
 
 function getClientUpcomingAppointments(int $clientId, int $limit = 5): array
 {
-    $startCol = appointmentStartColumn();
+    $startSql = appointmentStartSql('a');
 
     return Database::fetchAll(
-        "SELECT a.*, a.{$startCol} AS start_time FROM appointments a
-         WHERE a.client_id = ? AND a.{$startCol} >= NOW() AND a.status IN ('scheduled','confirmed')
-         ORDER BY a.{$startCol} ASC LIMIT ?",
+        "SELECT a.*, {$startSql} AS start_time FROM appointments a
+         WHERE a.client_id = ? AND {$startSql} >= NOW() AND a.status IN ('scheduled','confirmed')
+         ORDER BY {$startSql} ASC LIMIT ?",
         [$clientId, $limit]
     );
 }
 
 function getClientAppointments(int $clientId): array
 {
-    $startCol = appointmentStartColumn();
-    $endCol   = appointmentEndColumn();
+    $startSql = appointmentStartSql('a');
+    $endSql   = appointmentEndSql('a');
 
     return Database::fetchAll(
-        "SELECT a.*, a.{$startCol} AS start_time, a.{$endCol} AS end_time
+        "SELECT a.*, {$startSql} AS start_time, {$endSql} AS end_time
          FROM appointments a
          WHERE a.client_id = ?
-         ORDER BY a.{$startCol} DESC",
+         ORDER BY {$startSql} DESC",
         [$clientId]
     );
 }

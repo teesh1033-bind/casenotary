@@ -147,8 +147,11 @@ class AppointmentService
 
     public static function getById(int $id): ?array
     {
+        $startSql = appointmentStartSql('a');
+        $endSql   = appointmentEndSql('a');
+
         $row = Database::fetch(
-            'SELECT a.*, a.starts_at AS start_time, a.ends_at AS end_time FROM appointments a WHERE a.id = ?',
+            "SELECT a.*, {$startSql} AS start_time, {$endSql} AS end_time FROM appointments a WHERE a.id = ?",
             [$id]
         );
 
