@@ -2645,16 +2645,46 @@ body.sidebar-collapsed .main-content {
 }
 
 /* ── Client contact page ── */
+.contact-page {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.contact-page-top {
+    --bs-gutter-x: 1.75rem;
+    --bs-gutter-y: 1.75rem;
+}
+
+.contact-page-top .saas-card {
+    height: 100%;
+}
+
 .contact-info-body,
-.contact-form-body,
+.contact-form-body {
+    padding: 1.75rem 1.5rem;
+}
+
+.contact-quick-links-card {
+    width: 100%;
+}
+
 .contact-quick-links-body {
-    padding: 1.5rem 1.25rem;
+    padding: 1.75rem 1.5rem 2rem;
+}
+
+.contact-quick-link-btn {
+    padding: 0.9375rem 1.125rem;
+    min-height: 56px;
+    display: inline-flex;
+    align-items: center;
+    font-weight: 600;
 }
 
 .contact-info-list {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1.5rem;
 }
 
 .contact-info-item {
@@ -2695,6 +2725,15 @@ body.sidebar-collapsed .main-content {
 
 .contact-form-header {
     align-items: flex-start;
+    padding: 1.25rem 1.5rem;
+}
+
+.contact-page-top .saas-card-header {
+    padding: 1.25rem 1.5rem;
+}
+
+.contact-quick-links-card .saas-card-header {
+    padding: 1.25rem 1.5rem;
 }
 
 .contact-response-note {
@@ -2715,8 +2754,12 @@ body.sidebar-collapsed .main-content {
 .contact-message-form .form-control {
     border-color: var(--gray-200);
     border-radius: 8px;
-    padding: 0.625rem 0.875rem;
+    padding: 0.75rem 0.875rem;
     font-size: 0.875rem;
+}
+
+.contact-message-form textarea.form-control {
+    min-height: 180px;
 }
 
 .contact-message-form .form-control:focus {

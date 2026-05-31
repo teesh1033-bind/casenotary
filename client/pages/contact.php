@@ -18,7 +18,8 @@ $pageSubtitle = 'Get in touch with our team';
 require __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="row g-4">
+<div class="contact-page">
+    <div class="row g-4 contact-page-top">
     <div class="col-lg-6">
         <div class="saas-card h-100">
             <div class="saas-card-header">
@@ -92,39 +93,36 @@ require __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
-</div>
+    </div>
 
-<div class="row g-4 mt-1">
-    <div class="col-12">
-        <div class="saas-card">
-            <div class="saas-card-header">
-                <div>
-                    <h2 class="saas-card-title mb-0">Quick Links</h2>
-                    <p class="saas-card-subtitle mb-0">Common actions in your portal</p>
-                </div>
+    <div class="saas-card contact-quick-links-card">
+        <div class="saas-card-header">
+            <div>
+                <h2 class="saas-card-title mb-0">Quick Links</h2>
+                <p class="saas-card-subtitle mb-0">Common actions in your portal</p>
             </div>
-            <div class="card-body contact-quick-links-body">
-                <div class="row g-3">
-                    <div class="col-sm-6 col-lg-3">
-                        <a href="<?= clientUrl('pages/cases.php') ?>" class="btn btn-soft w-100 text-start py-2">
-                            <i class="bi bi-briefcase me-2"></i> View my cases
-                        </a>
-                    </div>
-                    <div class="col-sm-6 col-lg-3">
-                        <a href="<?= clientUrl('pages/payments.php') ?>" class="btn btn-soft w-100 text-start py-2">
-                            <i class="bi bi-receipt me-2"></i> Check invoices & payments
-                        </a>
-                    </div>
-                    <div class="col-sm-6 col-lg-3">
-                        <a href="<?= clientUrl('pages/appointments.php') ?>" class="btn btn-soft w-100 text-start py-2">
-                            <i class="bi bi-calendar3 me-2"></i> View appointments
-                        </a>
-                    </div>
-                    <div class="col-sm-6 col-lg-3">
-                        <a href="<?= clientUrl('pages/notifications.php') ?>" class="btn btn-soft w-100 text-start py-2">
-                            <i class="bi bi-bell me-2"></i> Notifications
-                        </a>
-                    </div>
+        </div>
+        <div class="card-body contact-quick-links-body">
+            <div class="row g-4">
+                <div class="col-sm-6 col-xl-3">
+                    <a href="<?= clientUrl('pages/cases.php') ?>" class="btn btn-soft w-100 text-start contact-quick-link-btn">
+                        <i class="bi bi-briefcase me-2"></i> View my cases
+                    </a>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                    <a href="<?= clientUrl('pages/payments.php') ?>" class="btn btn-soft w-100 text-start contact-quick-link-btn">
+                        <i class="bi bi-receipt me-2"></i> Check invoices & payments
+                    </a>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                    <a href="<?= clientUrl('pages/appointments.php') ?>" class="btn btn-soft w-100 text-start contact-quick-link-btn">
+                        <i class="bi bi-calendar3 me-2"></i> View appointments
+                    </a>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                    <a href="<?= clientUrl('pages/notifications.php') ?>" class="btn btn-soft w-100 text-start contact-quick-link-btn">
+                        <i class="bi bi-bell me-2"></i> Notifications
+                    </a>
                 </div>
             </div>
         </div>
