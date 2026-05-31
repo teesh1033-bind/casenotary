@@ -1,4 +1,4 @@
-<<?php
+<?php
 require_once __DIR__ . '/../core/bootstrap.php';
 
 Auth::requireClient();
@@ -18,6 +18,8 @@ $pageSubtitle = 'Get in touch with our team';
 
 require __DIR__ . '/../includes/header.php';
 ?>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
 <div class="contact-page">
     <div class="row g-4 contact-page-top">
@@ -74,11 +76,13 @@ require __DIR__ . '/../includes/header.php';
                                 <span class="contact-info-term">Business Hours:</span>
                                 <span class="contact-info-text">
                                     <?php 
+                                    // Splits by comma, semi-colon, or if it finds the word "Saturday" to ensure a neat multi-line layout
                                     if (strpos($businessHours, ',') !== false) {
                                         $hoursArray = explode(',', $businessHours);
-                                        foreach ($hoursArray as $index => $hoursLine) {
-                                            echo ($index > 0 ? '<br>' : '') . e(trim($hoursLine));
-                                        }
+                                        echo e(trim($hoursArray[0])) . '<br><span class="text-muted">' . e(trim($hoursArray[1] ?? '')) . '</span>';
+                                    } elseif (strpos($businessHours, 'Saturday') !== false) {
+                                        $hoursArray = explode('Saturday', $businessHours);
+                                        echo e(trim($hoursArray[0])) . '<br><span class="text-muted">Saturday' . e($hoursArray[1] ?? '') . '</span>';
                                     } else {
                                         echo e($businessHours);
                                     }
