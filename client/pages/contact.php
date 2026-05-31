@@ -19,50 +19,70 @@ $pageSubtitle = 'Get in touch with our team';
 require __DIR__ . '/../includes/header.php';
 ?>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-
 <style>
-    /* Inline CSS Fixes to force the layout alignment exactly like the reference UI */
+    .contact-page .saas-card-header.contact-panel-header,
+    .contact-page .saas-card-header.contact-form-header {
+        padding: 1.25rem 2.5rem !important;
+    }
+
+    .contact-page .contact-info-body,
+    .contact-page .contact-form-body {
+        padding: 2rem 2.5rem 2.25rem !important;
+    }
+
+    .contact-page .contact-message-form .form-control {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
     .contact-info-list {
         display: flex;
         flex-direction: column;
         gap: 1.5rem;
-        padding-top: 1rem;
     }
+
     .contact-info-row {
         display: flex !important;
         align-items: flex-start !important;
     }
+
     .contact-info-icon {
-        font-size: 1.25rem !important;
-        color: #6c757d !important;
-        margin-right: 1rem !important;
-        width: 24px !important;
+        font-size: 1.125rem !important;
+        color: var(--primary) !important;
+        margin-right: 0.875rem !important;
+        width: 1.25rem !important;
         text-align: center !important;
-        line-height: 1 !important;
+        line-height: 1.45 !important;
+        flex-shrink: 0;
     }
+
     .contact-info-content {
         display: flex;
         flex-direction: column;
+        gap: 0.15rem;
     }
+
     .contact-info-term {
         font-weight: 700 !important;
-        color: #212529 !important;
+        color: var(--secondary) !important;
         display: block !important;
-        margin-bottom: 0.15rem;
     }
+
     .contact-info-text {
-        color: #495057 !important;
+        color: var(--gray-600) !important;
+        font-weight: 400;
+        line-height: 1.55;
     }
+
     .contact-info-link {
         text-decoration: none !important;
-        color: #0d6efd !important;
+        color: var(--primary) !important;
     }
+
     .contact-info-link:hover {
         text-decoration: underline !important;
     }
 </style>
-
 <div class="contact-page">
     <div class="row g-4 contact-page-top">
         <div class="col-lg-6">

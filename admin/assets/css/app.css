@@ -2662,14 +2662,14 @@ body.sidebar-collapsed .main-content {
     border-radius: 14px;
 }
 
-.contact-panel-header {
-    padding: 1.25rem 2rem;
-    border-bottom: 1px solid var(--gray-100);
-}
-
 .contact-info-body,
 .contact-form-body {
-    padding: 1.625rem 2rem 1.875rem;
+    padding: 2rem 2.5rem 2.25rem !important;
+}
+
+.contact-panel-header,
+.contact-form-header {
+    padding: 1.25rem 2.5rem !important;
 }
 
 .contact-quick-links-card {
@@ -2783,7 +2783,6 @@ body.sidebar-collapsed .main-content {
 
 .contact-form-header {
     align-items: flex-start;
-    padding: 1.25rem 2rem;
 }
 
 .contact-response-note {
