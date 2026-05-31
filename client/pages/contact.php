@@ -12,6 +12,8 @@ if (!$clientId) {
 
 $company = getCompanySettings();
 $client = ClientService::getById($clientId);
+$contactPhone = trim($company['office_phone'] ?? '') ?: '+1 (555) 123-4567';
+$businessHours = trim($company['business_hours'] ?? '') ?: "Monday – Friday: 9:00 AM – 5:00 PM\nSaturday – Sunday: Closed";
 $pageTitle = 'Contact';
 $pageSubtitle = 'Get in touch with our team';
 
@@ -40,24 +42,27 @@ require __DIR__ . '/../includes/header.php';
 
                     <?php if (!empty($company['office_email'])): ?>
                         <div class="contact-info-item">
-                            <span class="contact-info-label">Email</span>
+                            <span class="contact-info-label">Email Us</span>
                             <a href="mailto:<?= e($company['office_email']) ?>" class="contact-info-value contact-info-link">
                                 <?= e($company['office_email']) ?>
                             </a>
                         </div>
                     <?php endif; ?>
 
-                    <?php if (!empty($company['office_phone'])): ?>
-                        <div class="contact-info-item">
-                            <span class="contact-info-label">Phone</span>
-                            <a href="tel:<?= e(preg_replace('/\s+/', '', $company['office_phone'])) ?>" class="contact-info-value contact-info-link">
-                                <?= e($company['office_phone']) ?>
-                            </a>
-                        </div>
-                    <?php endif; ?>
+                    <div class="contact-info-item">
+                        <span class="contact-info-label">Contact Us</span>
+                        <a href="tel:<?= e(preg_replace('/\s+/', '', $contactPhone)) ?>" class="contact-info-value contact-info-link">
+                            <?= e($contactPhone) ?>
+                        </a>
+                    </div>
+
+                    <div class="contact-info-item">
+                        <span class="contact-info-label">Business Hours</span>
+                        <span class="contact-info-value contact-info-hours"><?= nl2br(e($businessHours)) ?></span>
+                    </div>
                 </div>
 
-                <?php if (empty($company['office_email']) && empty($company['office_phone'])): ?>
+                <?php if (empty($company['office_email']) && empty($company['office_phone']) && empty($company['business_hours'])): ?>
                     <div class="empty-state py-4">
                         <i class="bi bi-envelope"></i>
                         <p class="mb-0">Contact details have not been configured yet. Please check back later.</p>

@@ -206,6 +206,7 @@ CREATE TABLE IF NOT EXISTS company_settings (
     description     TEXT DEFAULT NULL,
     office_email    VARCHAR(255) DEFAULT NULL,
     office_phone    VARCHAR(30) DEFAULT NULL,
+    business_hours  TEXT DEFAULT NULL,
     address         TEXT DEFAULT NULL,
     smtp_host       VARCHAR(255) DEFAULT NULL,
     smtp_port       INT UNSIGNED DEFAULT 587,

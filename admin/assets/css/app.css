@@ -2667,6 +2667,7 @@ body.sidebar-collapsed .main-content {
 
 .contact-quick-links-card {
     width: 100%;
+    margin-top: 2.5rem;
 }
 
 .contact-quick-links-body {
@@ -2706,6 +2707,12 @@ body.sidebar-collapsed .main-content {
     font-weight: 600;
     color: var(--secondary);
     line-height: 1.5;
+}
+
+.contact-info-hours {
+    font-weight: 500;
+    line-height: 1.65;
+    white-space: pre-line;
 }
 
 .contact-info-link {
