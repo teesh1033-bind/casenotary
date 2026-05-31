@@ -2662,7 +2662,7 @@ body.sidebar-collapsed .main-content {
 
 .contact-info-body,
 .contact-form-body {
-    padding: 1.75rem 1.5rem;
+    padding: 1.5rem 1.5rem 1.75rem;
 }
 
 .contact-quick-links-card {
@@ -2671,63 +2671,128 @@ body.sidebar-collapsed .main-content {
 }
 
 .contact-quick-links-body {
-    padding: 1.75rem 1.5rem 2rem;
-}
-
-.contact-quick-link-btn {
-    padding: 0.9375rem 1.125rem;
-    min-height: 56px;
-    display: inline-flex;
-    align-items: center;
-    font-weight: 600;
+    padding: 1.5rem 1.5rem 2rem;
 }
 
 .contact-info-list {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1.375rem;
 }
 
-.contact-info-item {
+.contact-info-row {
     display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
+    align-items: flex-start;
+    gap: 0.875rem;
 }
 
-.contact-info-label {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--gray-500);
+.contact-info-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--primary-light);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 1rem;
 }
 
-.contact-info-value {
-    font-size: 0.9375rem;
-    font-weight: 600;
+.contact-info-content {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.875rem;
+    line-height: 1.55;
     color: var(--secondary);
-    line-height: 1.5;
+}
+
+.contact-info-term {
+    font-weight: 700;
+    margin-right: 0.35rem;
+}
+
+.contact-info-text {
+    font-weight: 500;
+    color: var(--gray-600);
 }
 
 .contact-info-hours {
-    font-weight: 500;
+    display: block;
+    margin-top: 0.125rem;
     line-height: 1.65;
-    white-space: pre-line;
 }
 
 .contact-info-link {
     text-decoration: none;
-    color: var(--secondary);
+    color: var(--gray-600);
 }
 
 .contact-info-link:hover {
     color: var(--primary);
 }
 
-.contact-info-desc {
+.contact-info-row-stack .contact-info-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.contact-info-row-stack .contact-info-term {
+    margin-right: 0;
+}
+
+.contact-quick-tile {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 132px;
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    background: var(--white);
+    box-shadow: 0 1px 2px rgba(0, 24, 44, 0.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.contact-quick-tile:hover {
+    transform: translateY(-2px);
+    border-color: rgba(58, 175, 169, 0.35);
+    box-shadow: 0 8px 20px rgba(0, 24, 44, 0.08);
+    color: inherit;
+}
+
+.contact-quick-tile-head {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.875rem 1rem;
+    background: var(--primary);
+    color: var(--white);
     font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.contact-quick-tile-head i {
+    font-size: 1.05rem;
+}
+
+.contact-quick-tile-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 1rem 1rem 1.125rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
     color: var(--gray-600);
-    line-height: 1.6;
+    gap: 0.35rem;
+}
+
+.contact-quick-tile-body i {
+    font-size: 0.875rem;
+    color: var(--primary);
 }
 
 .contact-form-header {

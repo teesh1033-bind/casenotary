@@ -11,7 +11,6 @@ if (!$clientId) {
 }
 
 $company = getCompanySettings();
-$client = ClientService::getById($clientId);
 $contactPhone = trim($company['office_phone'] ?? '') ?: '+1 (555) 123-4567';
 $businessHours = trim($company['business_hours'] ?? '') ?: "Monday – Friday: 9:00 AM – 5:00 PM\nSaturday – Sunday: Closed";
 $pageTitle = 'Contact';
@@ -22,82 +21,83 @@ require __DIR__ . '/../includes/header.php';
 
 <div class="contact-page">
     <div class="row g-4 contact-page-top">
-    <div class="col-lg-6">
-        <div class="saas-card h-100">
-            <div class="saas-card-header">
-                <h2 class="saas-card-title mb-0">Office Information</h2>
-            </div>
-            <div class="card-body contact-info-body">
-                <div class="contact-info-list">
-                    <div class="contact-info-item">
-                        <span class="contact-info-label">Company</span>
-                        <span class="contact-info-value"><?= e($company['company_name']) ?></span>
-                    </div>
+        <div class="col-lg-6">
+            <div class="saas-card h-100">
+                <div class="saas-card-header">
+                    <h2 class="saas-card-title mb-0">Office Information</h2>
+                </div>
+                <div class="card-body contact-info-body">
+                    <div class="contact-info-list">
+                        <?php if (!empty($company['description'])): ?>
+                            <div class="contact-info-row">
+                                <div class="contact-info-icon"><i class="bi bi-briefcase"></i></div>
+                                <div class="contact-info-content">
+                                    <span class="contact-info-term">Services</span>
+                                    <span class="contact-info-text"><?= e($company['description']) ?></span>
+                                </div>
+                            </div>
+                        <?php endif; ?>
 
-                    <?php if (!empty($company['description'])): ?>
-                        <div class="contact-info-item">
-                            <p class="contact-info-desc mb-0"><?= nl2br(e($company['description'])) ?></p>
+                        <?php if (!empty($company['office_email'])): ?>
+                            <div class="contact-info-row">
+                                <div class="contact-info-icon"><i class="bi bi-envelope"></i></div>
+                                <div class="contact-info-content">
+                                    <span class="contact-info-term">Email Us</span>
+                                    <a href="mailto:<?= e($company['office_email']) ?>" class="contact-info-text contact-info-link">
+                                        <?= e($company['office_email']) ?>
+                                    </a>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="contact-info-row">
+                            <div class="contact-info-icon"><i class="bi bi-telephone"></i></div>
+                            <div class="contact-info-content">
+                                <span class="contact-info-term">Contact Us</span>
+                                <a href="tel:<?= e(preg_replace('/\s+/', '', $contactPhone)) ?>" class="contact-info-text contact-info-link">
+                                    <?= e($contactPhone) ?>
+                                </a>
+                            </div>
                         </div>
-                    <?php endif; ?>
 
-                    <?php if (!empty($company['office_email'])): ?>
-                        <div class="contact-info-item">
-                            <span class="contact-info-label">Email Us</span>
-                            <a href="mailto:<?= e($company['office_email']) ?>" class="contact-info-value contact-info-link">
-                                <?= e($company['office_email']) ?>
-                            </a>
+                        <div class="contact-info-row contact-info-row-stack">
+                            <div class="contact-info-icon"><i class="bi bi-clock"></i></div>
+                            <div class="contact-info-content">
+                                <span class="contact-info-term">Business Hours</span>
+                                <span class="contact-info-text contact-info-hours"><?= nl2br(e($businessHours)) ?></span>
+                            </div>
                         </div>
-                    <?php endif; ?>
-
-                    <div class="contact-info-item">
-                        <span class="contact-info-label">Contact Us</span>
-                        <a href="tel:<?= e(preg_replace('/\s+/', '', $contactPhone)) ?>" class="contact-info-value contact-info-link">
-                            <?= e($contactPhone) ?>
-                        </a>
-                    </div>
-
-                    <div class="contact-info-item">
-                        <span class="contact-info-label">Business Hours</span>
-                        <span class="contact-info-value contact-info-hours"><?= nl2br(e($businessHours)) ?></span>
                     </div>
                 </div>
-
-                <?php if (empty($company['office_email']) && empty($company['office_phone']) && empty($company['business_hours'])): ?>
-                    <div class="empty-state py-4">
-                        <i class="bi bi-envelope"></i>
-                        <p class="mb-0">Contact details have not been configured yet. Please check back later.</p>
-                    </div>
-                <?php endif; ?>
             </div>
         </div>
-    </div>
 
-    <div class="col-lg-6">
-        <div class="saas-card h-100">
-            <div class="saas-card-header contact-form-header">
-                <h2 class="saas-card-title mb-0">Send a Message</h2>
-                <p class="contact-response-note mb-0">We typically respond with one or two business day(s).</p>
-            </div>
-            <div class="card-body contact-form-body">
-                <form method="post" action="<?= clientUrl('actions/contact-action.php') ?>" class="contact-message-form">
-                    <?= CSRF::field() ?>
-                    <div class="mb-4">
-                        <label class="form-label contact-form-label" for="subject">Subject</label>
-                        <input type="text" id="subject" name="subject" class="form-control" required
-                               value="<?= e(old('subject')) ?>" placeholder="How can we help?">
-                    </div>
-                    <div class="mb-4">
-                        <label class="form-label contact-form-label" for="message">Message</label>
-                        <textarea id="message" name="message" class="form-control" rows="6" required
-                                  placeholder="Write your message here..."><?= e(old('message')) ?></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-send me-2"></i> Send Message
-                    </button>
-                </form>
+        <div class="col-lg-6">
+            <div class="saas-card h-100">
+                <div class="saas-card-header contact-form-header">
+                    <h2 class="saas-card-title mb-0">Send a Message</h2>
+                    <p class="contact-response-note mb-0">We typically respond with one or two business day(s).</p>
+                </div>
+                <div class="card-body contact-form-body">
+                    <form method="post" action="<?= clientUrl('actions/contact-action.php') ?>" class="contact-message-form">
+                        <?= CSRF::field() ?>
+                        <div class="mb-4">
+                            <label class="form-label contact-form-label" for="subject">Subject</label>
+                            <input type="text" id="subject" name="subject" class="form-control" required
+                                   value="<?= e(old('subject')) ?>" placeholder="How can we help?">
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label contact-form-label" for="message">Message</label>
+                            <textarea id="message" name="message" class="form-control" rows="6" required
+                                      placeholder="Write your message here..."><?= e(old('message')) ?></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send me-2"></i> Send Message
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
-    </div>
     </div>
 
     <div class="saas-card contact-quick-links-card">
@@ -110,23 +110,47 @@ require __DIR__ . '/../includes/header.php';
         <div class="card-body contact-quick-links-body">
             <div class="row g-4">
                 <div class="col-sm-6 col-xl-3">
-                    <a href="<?= clientUrl('pages/cases.php') ?>" class="btn btn-soft w-100 text-start contact-quick-link-btn">
-                        <i class="bi bi-briefcase me-2"></i> View my cases
+                    <a href="<?= clientUrl('pages/cases.php') ?>" class="contact-quick-tile">
+                        <div class="contact-quick-tile-head">
+                            <i class="bi bi-briefcase"></i>
+                            <span>Cases</span>
+                        </div>
+                        <div class="contact-quick-tile-body">
+                            My Cases <i class="bi bi-arrow-right"></i>
+                        </div>
                     </a>
                 </div>
                 <div class="col-sm-6 col-xl-3">
-                    <a href="<?= clientUrl('pages/payments.php') ?>" class="btn btn-soft w-100 text-start contact-quick-link-btn">
-                        <i class="bi bi-receipt me-2"></i> Check invoices & payments
+                    <a href="<?= clientUrl('pages/payments.php') ?>" class="contact-quick-tile">
+                        <div class="contact-quick-tile-head">
+                            <i class="bi bi-credit-card"></i>
+                            <span>Invoice/Payment</span>
+                        </div>
+                        <div class="contact-quick-tile-body">
+                            Check Invoices &amp; Payments <i class="bi bi-arrow-right"></i>
+                        </div>
                     </a>
                 </div>
                 <div class="col-sm-6 col-xl-3">
-                    <a href="<?= clientUrl('pages/appointments.php') ?>" class="btn btn-soft w-100 text-start contact-quick-link-btn">
-                        <i class="bi bi-calendar3 me-2"></i> View appointments
+                    <a href="<?= clientUrl('pages/appointments.php') ?>" class="contact-quick-tile">
+                        <div class="contact-quick-tile-head">
+                            <i class="bi bi-calendar3"></i>
+                            <span>Appointments</span>
+                        </div>
+                        <div class="contact-quick-tile-body">
+                            View Appointments <i class="bi bi-arrow-right"></i>
+                        </div>
                     </a>
                 </div>
                 <div class="col-sm-6 col-xl-3">
-                    <a href="<?= clientUrl('pages/notifications.php') ?>" class="btn btn-soft w-100 text-start contact-quick-link-btn">
-                        <i class="bi bi-bell me-2"></i> Notifications
+                    <a href="<?= clientUrl('pages/notifications.php') ?>" class="contact-quick-tile">
+                        <div class="contact-quick-tile-head">
+                            <i class="bi bi-bell"></i>
+                            <span>Notification</span>
+                        </div>
+                        <div class="contact-quick-tile-body">
+                            All Notifications <i class="bi bi-arrow-right"></i>
+                        </div>
                     </a>
                 </div>
             </div>
