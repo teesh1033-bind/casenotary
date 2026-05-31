@@ -2663,13 +2663,13 @@ body.sidebar-collapsed .main-content {
 }
 
 .contact-panel-header {
-    padding: 1.125rem 1.375rem;
+    padding: 1.25rem 2rem;
     border-bottom: 1px solid var(--gray-100);
 }
 
 .contact-info-body,
 .contact-form-body {
-    padding: 1.375rem 1.375rem 1.5rem;
+    padding: 1.625rem 2rem 1.875rem;
 }
 
 .contact-quick-links-card {
@@ -2783,7 +2783,7 @@ body.sidebar-collapsed .main-content {
 
 .contact-form-header {
     align-items: flex-start;
-    padding: 1.125rem 1.375rem;
+    padding: 1.25rem 2rem;
 }
 
 .contact-response-note {
