@@ -1,4 +1,4 @@
-<?php
+<<?php
 require_once __DIR__ . '/../core/bootstrap.php';
 
 Auth::requireClient();
@@ -32,7 +32,7 @@ require __DIR__ . '/../includes/header.php';
                             <div class="contact-info-icon"><i class="bi bi-building"></i></div>
                             <div class="contact-info-content">
                                 <span class="contact-info-term">Company:</span>
-                                <span class="contact-info-text"><?= e($company['company_name']) ?></span>
+                                <span class="contact-info-text"><?= e($company['company_name'] ?? 'Notary Management Pro') ?></span>
                             </div>
                         </div>
 
@@ -72,7 +72,18 @@ require __DIR__ . '/../includes/header.php';
                             <div class="contact-info-icon"><i class="bi bi-clock"></i></div>
                             <div class="contact-info-content">
                                 <span class="contact-info-term">Business Hours:</span>
-                                <span class="contact-info-text"><?= e($businessHours) ?></span>
+                                <span class="contact-info-text">
+                                    <?php 
+                                    if (strpos($businessHours, ',') !== false) {
+                                        $hoursArray = explode(',', $businessHours);
+                                        foreach ($hoursArray as $index => $hoursLine) {
+                                            echo ($index > 0 ? '<br>' : '') . e(trim($hoursLine));
+                                        }
+                                    } else {
+                                        echo e($businessHours);
+                                    }
+                                    ?>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -108,7 +119,7 @@ require __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <div class="saas-card contact-quick-links-card contact-panel">
+    <div class="saas-card contact-quick-links-card contact-panel mt-4">
         <div class="saas-card-header contact-panel-header">
             <div>
                 <h2 class="saas-card-title mb-0">Quick Links</h2>
