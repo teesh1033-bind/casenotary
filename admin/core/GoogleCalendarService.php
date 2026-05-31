@@ -17,12 +17,46 @@ class GoogleCalendarService
         self::storeMeetingLink($appointmentId, $addUrl);
 
         return [
-            'success'  => true,
-            'url'      => $addUrl,
-            'ics_url'  => url('actions/appointment-ics.php?id=' . $appointmentId),
-            'ics_path' => $icsPath,
-            'message'  => 'Google Calendar link ready.',
+            'success'     => true,
+            'url'         => $addUrl,
+            'outlook_url' => self::buildOutlookCalendarUrl($appointment, $client),
+            'ics_url'     => url('actions/appointment-ics.php?id=' . $appointmentId),
+            'ics_path'    => $icsPath,
+            'message'     => 'Google Calendar link ready.',
         ];
+    }
+
+    public static function getCalendarLinks(int $appointmentId, array $appointment, array $client, bool $forClientPortal = false): array
+    {
+        return [
+            'google'  => $appointment['meeting_link'] ?? self::buildAddToCalendarUrl($appointment, $client),
+            'outlook' => self::buildOutlookCalendarUrl($appointment, $client),
+            'ics'     => $forClientPortal
+                ? clientUrl('actions/appointment-ics.php?id=' . $appointmentId)
+                : url('actions/appointment-ics.php?id=' . $appointmentId),
+        ];
+    }
+
+    public static function buildOutlookCalendarUrl(array $appointment, array $client): string
+    {
+        $start = appointmentStart($appointment);
+        if (!$start) {
+            return '';
+        }
+
+        $end = appointmentEnd($appointment) ?: date('Y-m-d H:i:s', strtotime($start . ' +1 hour'));
+
+        $params = [
+            'path'     => '/calendar/action/compose',
+            'rru'      => 'addevent',
+            'subject'  => $appointment['title'] ?? 'Appointment',
+            'startdt'  => date('Y-m-d\TH:i:s', strtotime($start)),
+            'enddt'    => date('Y-m-d\TH:i:s', strtotime($end)),
+            'body'     => self::eventDescription($appointment, $client),
+            'location' => $appointment['location'] ?? '',
+        ];
+
+        return 'https://outlook.live.com/calendar/0/deeplink/compose?' . http_build_query($params);
     }
 
     public static function buildIcsContent(array $appointment, array $client): string
