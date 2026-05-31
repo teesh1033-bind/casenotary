@@ -12,7 +12,7 @@ if (!$clientId) {
 
 $company = getCompanySettings();
 $contactPhone = trim($company['office_phone'] ?? '') ?: '+1 (555) 123-4567';
-$businessHours = trim($company['business_hours'] ?? '') ?: "Monday – Friday: 9:00 AM – 5:00 PM\nSaturday – Sunday: Closed";
+$businessHours = trim($company['business_hours'] ?? '') ?: 'Monday – Friday: 9:00 AM – 5:00 PM, Saturday – Sunday: Closed';
 $pageTitle = 'Contact';
 $pageSubtitle = 'Get in touch with our team';
 
@@ -22,17 +22,25 @@ require __DIR__ . '/../includes/header.php';
 <div class="contact-page">
     <div class="row g-4 contact-page-top">
         <div class="col-lg-6">
-            <div class="saas-card h-100">
-                <div class="saas-card-header">
+            <div class="saas-card h-100 contact-panel">
+                <div class="saas-card-header contact-panel-header">
                     <h2 class="saas-card-title mb-0">Office Information</h2>
                 </div>
                 <div class="card-body contact-info-body">
                     <div class="contact-info-list">
+                        <div class="contact-info-row">
+                            <div class="contact-info-icon"><i class="bi bi-building"></i></div>
+                            <div class="contact-info-content">
+                                <span class="contact-info-term">Company:</span>
+                                <span class="contact-info-text"><?= e($company['company_name']) ?></span>
+                            </div>
+                        </div>
+
                         <?php if (!empty($company['description'])): ?>
                             <div class="contact-info-row">
                                 <div class="contact-info-icon"><i class="bi bi-briefcase"></i></div>
                                 <div class="contact-info-content">
-                                    <span class="contact-info-term">Services</span>
+                                    <span class="contact-info-term">Services:</span>
                                     <span class="contact-info-text"><?= e($company['description']) ?></span>
                                 </div>
                             </div>
@@ -42,7 +50,7 @@ require __DIR__ . '/../includes/header.php';
                             <div class="contact-info-row">
                                 <div class="contact-info-icon"><i class="bi bi-envelope"></i></div>
                                 <div class="contact-info-content">
-                                    <span class="contact-info-term">Email Us</span>
+                                    <span class="contact-info-term">Email Us:</span>
                                     <a href="mailto:<?= e($company['office_email']) ?>" class="contact-info-text contact-info-link">
                                         <?= e($company['office_email']) ?>
                                     </a>
@@ -53,18 +61,18 @@ require __DIR__ . '/../includes/header.php';
                         <div class="contact-info-row">
                             <div class="contact-info-icon"><i class="bi bi-telephone"></i></div>
                             <div class="contact-info-content">
-                                <span class="contact-info-term">Contact Us</span>
+                                <span class="contact-info-term">Contact Us:</span>
                                 <a href="tel:<?= e(preg_replace('/\s+/', '', $contactPhone)) ?>" class="contact-info-text contact-info-link">
                                     <?= e($contactPhone) ?>
                                 </a>
                             </div>
                         </div>
 
-                        <div class="contact-info-row contact-info-row-stack">
+                        <div class="contact-info-row">
                             <div class="contact-info-icon"><i class="bi bi-clock"></i></div>
                             <div class="contact-info-content">
-                                <span class="contact-info-term">Business Hours</span>
-                                <span class="contact-info-text contact-info-hours"><?= nl2br(e($businessHours)) ?></span>
+                                <span class="contact-info-term">Business Hours:</span>
+                                <span class="contact-info-text"><?= e($businessHours) ?></span>
                             </div>
                         </div>
                     </div>
@@ -73,7 +81,7 @@ require __DIR__ . '/../includes/header.php';
         </div>
 
         <div class="col-lg-6">
-            <div class="saas-card h-100">
+            <div class="saas-card h-100 contact-panel">
                 <div class="saas-card-header contact-form-header">
                     <h2 class="saas-card-title mb-0">Send a Message</h2>
                     <p class="contact-response-note mb-0">We typically respond with one or two business day(s).</p>
@@ -81,14 +89,14 @@ require __DIR__ . '/../includes/header.php';
                 <div class="card-body contact-form-body">
                     <form method="post" action="<?= clientUrl('actions/contact-action.php') ?>" class="contact-message-form">
                         <?= CSRF::field() ?>
-                        <div class="mb-4">
+                        <div class="mb-3">
                             <label class="form-label contact-form-label" for="subject">Subject</label>
                             <input type="text" id="subject" name="subject" class="form-control" required
                                    value="<?= e(old('subject')) ?>" placeholder="How can we help?">
                         </div>
                         <div class="mb-4">
                             <label class="form-label contact-form-label" for="message">Message</label>
-                            <textarea id="message" name="message" class="form-control" rows="6" required
+                            <textarea id="message" name="message" class="form-control" rows="7" required
                                       placeholder="Write your message here..."><?= e(old('message')) ?></textarea>
                         </div>
                         <button type="submit" class="btn btn-primary">
@@ -100,15 +108,15 @@ require __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <div class="saas-card contact-quick-links-card">
-        <div class="saas-card-header">
+    <div class="saas-card contact-quick-links-card contact-panel">
+        <div class="saas-card-header contact-panel-header">
             <div>
                 <h2 class="saas-card-title mb-0">Quick Links</h2>
                 <p class="saas-card-subtitle mb-0">Common actions in your portal</p>
             </div>
         </div>
         <div class="card-body contact-quick-links-body">
-            <div class="row g-4">
+            <div class="row g-3 g-lg-4">
                 <div class="col-sm-6 col-xl-3">
                     <a href="<?= clientUrl('pages/cases.php') ?>" class="contact-quick-tile">
                         <div class="contact-quick-tile-head">
